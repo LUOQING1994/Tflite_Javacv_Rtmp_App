@@ -95,6 +95,8 @@ public class Camera2BasicFragment extends Fragment
   private TextView textView;
   private ImageClassifier classifier;
   private CarBehaviorAnalysisByOpenCv carBehaviorAnalysisByOpenCv;
+  private CarBehaviorAnalysisByModel behaviorAnalysisByModel;
+  private OpenCVTools openCVTools;
   private CameraActivity angle_activity;     // 获取该对象中的角度
   // 设置摄像头最大可接受的分辨率
   /** Max preview width that is guaranteed by Camera2 API */
@@ -326,6 +328,8 @@ public class Camera2BasicFragment extends Fragment
     try {
       classifier = new ImageClassifier(getActivity());
       carBehaviorAnalysisByOpenCv = new CarBehaviorAnalysisByOpenCv();
+      behaviorAnalysisByModel = new CarBehaviorAnalysisByModel();
+      openCVTools = new OpenCVTools();
     } catch (IOException e) {
       Log.e(TAG, e.toString());
       Log.e(TAG, "Failed to initialize an image classifier.");
@@ -723,7 +727,7 @@ public class Camera2BasicFragment extends Fragment
     textureView.setTransform(matrix);
   }
 
-
+  // start ======================  OpenCV为主的算法需要的参数 =====================
   int timeF = 3; // 每隔timeF取一张图片
   int timeF_switch_bg = 20;  // 当提取三张图片后 再替换对比底图
 
@@ -733,12 +737,12 @@ public class Camera2BasicFragment extends Fragment
 
 
   int number = 0;  // 用于模拟陀螺仪
-  int tmp_angle = 0; // 记录当前陀螺仪的角度
 
   // 数据转换的临时变量
   Mat tmp_now_image = new Mat();
   Mat tmp_cut_image = new Mat();
-  Integer tmp_car_state = 0; // 车辆行为识别结果
+  Integer tmp_car_state = 0; // 以OpenCV为主 所得到的车辆行为识别结果
+  Integer tmp_car_model_state = 0; // 以模型为主 所得到的车辆行为识别结果
 
   Integer now_image_len = 0;  // 当前检测区域的直线数量
 
@@ -748,6 +752,18 @@ public class Camera2BasicFragment extends Fragment
   Integer last_car_state = 0;  // 记录车辆上一时刻状态
   boolean is_angle_ok = false;   // 陀螺仪角度是否放置正确
   Integer first_angle = 0;  // 第一次得到陀螺仪数据
+
+  Integer car_state_number = 0;  // 记录运输状态的持续次数
+
+  // end ======================  OpenCV为主的算法需要的参数 =====================
+
+  // start ======================  模型为主的算法需要的参数 =====================
+
+  int last_car_category = 6; // 默认上一时刻车载类别为篷布
+  int tmp_car_category = 6; // 记录车载类别的中间状态
+  String model_result = ""; // 记录模型货物分类结果
+  // end ======================  模型为主的算法需要的参数 =====================
+
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
     String textToShow = "";
@@ -762,7 +778,7 @@ public class Camera2BasicFragment extends Fragment
     Bitmap bitmap_analysis =
             textureView.getBitmap(ImageClassifier.Analysis_IMG_SIZE_X, ImageClassifier.Analysis_IMG_SIZE_Y);
 
-    // 得到当前陀螺仪角度数据  为了方便测试 陀螺仪数据需要自定义
+    // 判断陀螺仪是否有正确安装
     int tmp_angle = (int) angle_activity.currentAngle;
 
     if (!is_angle_ok){
@@ -783,24 +799,26 @@ public class Camera2BasicFragment extends Fragment
       is_angle_ok = true;
     }
     Log.d("================", "currentAngle========>" + tmp_angle + " : " + first_angle);
-    // 当前车载设备的速度
 
     if (is_angle_ok) {
 
       if (timeF <= 0) {
         timeF = 3;
         Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
-        tmp_cut_image = carBehaviorAnalysisByOpenCv.deal_flage(tmp_now_image);   // 对图片进行预处理
-        now_image_len = carBehaviorAnalysisByOpenCv.contour_extraction(tmp_cut_image); // 获取图片轮廓
+        tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
+        now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
 
         // 初始化基础参数
         if (last_image.cols() == 0) {
+          // 默认为当前货物类别
+          last_car_category = classifier.CAR_CATEGORY;
+          tmp_car_category = classifier.CAR_CATEGORY;
           last_image = tmp_cut_image;
           tmp_last_image = tmp_cut_image;
         }
 
         // 计算前后两帧的相似度
-        image_sim = carBehaviorAnalysisByOpenCv.split_blok_box_sim(last_image, tmp_cut_image);
+        image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
         if (image_sim > 7){
           image_sim_number =Math.max(image_sim_number - 1,0);
         } else {
@@ -823,7 +841,26 @@ public class Camera2BasicFragment extends Fragment
         // 返回 车辆行为结果索引
         tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(last_car_state, image_sim_number,now_image_len,car_speed, tmp_angle);
 
+        // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
+        if (last_car_state != tmp_car_state){
+          car_state_number = Math.max(0,car_state_number -1 );
+          if (car_state_number > 0){
+            tmp_car_state = last_car_state;
+          }
+        } else {
+          car_state_number = 5;
+        }
+
         last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+
+        // 进行模型检测 ===========================================
+        model_result = classifier.classifyFrame(bitmap);
+
+        // 这里启用以模型为主的检测算法
+        tmp_car_model_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
+                ,classifier.CAR_CATEGORY_PROBABILITY, tmp_cut_image, last_image, image_sim_number, tmp_angle, car_speed);
+
+
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
         if (timeF_switch_bg <= 0) {
@@ -840,14 +877,10 @@ public class Camera2BasicFragment extends Fragment
         timeF = timeF - 1;
       }
 
-      // ================================ 开始进行货物类别检测   ================
-      if (tmp_car_state !=0) {
-        textToShow = classifier.classifyFrame(bitmap);
-      }
-
-      textToShow = carBehaviorAnalysisByOpenCv.result_text.get(tmp_car_state) +" \n"+
+      textToShow = "OpenCV: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
+              "模型: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
               "当前轮廓: " + now_image_len + " \n " +
-              "当前角度：" + tmp_angle + " \n " + textToShow;
+              "当前角度：" + tmp_angle + " \n " + model_result;
 
       showToast(textToShow);
       bitmap.recycle();
