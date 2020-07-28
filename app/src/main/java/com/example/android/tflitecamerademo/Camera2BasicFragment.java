@@ -746,10 +746,11 @@ public class Camera2BasicFragment extends Fragment
   Integer car_speed = 0;  // 当前车载设备速度
   Integer image_sim_number = 10;  // 前后两帧相似度持续小于7的次数
   Integer last_car_state = 0;  // 记录车辆上一时刻状态
-  boolean isFirst = true;   // 是否是第一次获得陀螺仪数据
+  boolean is_angle_ok = false;   // 陀螺仪角度是否放置正确
   Integer first_angle = 0;  // 第一次得到陀螺仪数据
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
+    String textToShow = "";
     // 获取每一帧的数据
     if (classifier == null || getActivity() == null || cameraDevice == null) {
       showToast("Uninitialized Classifier or invalid context.");
@@ -761,90 +762,98 @@ public class Camera2BasicFragment extends Fragment
     Bitmap bitmap_analysis =
             textureView.getBitmap(ImageClassifier.Analysis_IMG_SIZE_X, ImageClassifier.Analysis_IMG_SIZE_Y);
 
-    if (timeF <= 0) {
+    // 得到当前陀螺仪角度数据  为了方便测试 陀螺仪数据需要自定义
+    int tmp_angle = (int) angle_activity.currentAngle;
 
-      timeF = 3;
-      Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
-      tmp_cut_image = carBehaviorAnalysisByOpenCv.deal_flage(tmp_now_image);   // 对图片进行预处理
-      now_image_len = carBehaviorAnalysisByOpenCv.contour_extraction(tmp_cut_image); // 获取图片轮廓
-
-      // 初始化基础参数
-      if (last_image.cols() == 0) {
-        last_image = tmp_cut_image;
-        tmp_last_image = tmp_cut_image;
+    if (!is_angle_ok){
+      if( (tmp_angle < 20) ){
+        first_angle = Math.min(first_angle + 1, 10);
+      } else if(((90 - tmp_angle) < 20)){
+        first_angle = Math.max(first_angle - 1, -10);
       }
+    }
 
-      // 计算前后两帧的相似度
-      image_sim = carBehaviorAnalysisByOpenCv.split_blok_box_sim(last_image, tmp_cut_image);
-      if (image_sim > 7){
-        image_sim_number =Math.max(image_sim_number - 1,0);
-      } else {
-        image_sim_number = Math.min(image_sim_number + 1, 10);
-      }
-
-
-      //  缓存图片 用于上传服务器 只缓存50帧
-      int tmp_much_catch_image_len = much_catch_image.size();
-      if (tmp_much_catch_image_len > 50) {
-        much_catch_image.remove(0);
-        much_catch_image.add(tmp_now_image);
-      } else {
-        much_catch_image.add(tmp_now_image);
-      }
-
-      // 得到当前陀螺仪角度数据  为了方便测试 陀螺仪数据取反 使得竖着为0 平放为90
-      int tmp_angle = (int) angle_activity.currentAngle;
-//      if (isFirst) {
-//        if ( tmp_angle > 60) {
-//          first_angle = 1;
-//        } else {
-//          first_angle = 0;
-//        }
-//        isFirst = false;
-//      } else {
-//        if (first_angle == 1 ){
-//          tmp_angle = 90 - tmp_angle;
-//        }
-//      }
+    if (first_angle == -10) {
       tmp_angle = 90 - tmp_angle;
+      is_angle_ok = true;
+    } else if(first_angle != 10){
+      textToShow = "设备没有正确放置！";
+      showToast(textToShow);
+    } else {
+      is_angle_ok = true;
+    }
+    Log.d("================", "currentAngle========>" + tmp_angle + " : " + first_angle);
+    // 当前车载设备的速度
 
-      // 当前车载设备的速度
+    if (is_angle_ok) {
 
-      Log.d("================", "currentAngle========>" + tmp_angle);
-      Log.d(TAG, "" + last_car_state +" "+ image_sim_number +" "+ now_image_len +" "+car_speed +" "+ tmp_angle);
+      if (timeF <= 0) {
+        timeF = 3;
+        Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
+        tmp_cut_image = carBehaviorAnalysisByOpenCv.deal_flage(tmp_now_image);   // 对图片进行预处理
+        now_image_len = carBehaviorAnalysisByOpenCv.contour_extraction(tmp_cut_image); // 获取图片轮廓
 
-      // 结合 陀螺仪 模型检测结果 进行车辆行为分析
-      // 返回 车辆行为结果索引
-      tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(last_car_state, image_sim_number,now_image_len,car_speed, tmp_angle);
+        // 初始化基础参数
+        if (last_image.cols() == 0) {
+          last_image = tmp_cut_image;
+          tmp_last_image = tmp_cut_image;
+        }
 
-      last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+        // 计算前后两帧的相似度
+        image_sim = carBehaviorAnalysisByOpenCv.split_blok_box_sim(last_image, tmp_cut_image);
+        if (image_sim > 7){
+          image_sim_number =Math.max(image_sim_number - 1,0);
+        } else {
+          image_sim_number = Math.min(image_sim_number + 1, 10);
+        }
 
-      // 相识度对比底片替换 使得last_image与flag相差一定帧数
-      if (timeF_switch_bg <= 0) {
-        timeF_switch_bg = 20;
-        last_image = tmp_last_image;
-        tmp_last_image = tmp_cut_image;
-      } else {
-        timeF_switch_bg = timeF_switch_bg - 1;
+
+        //  缓存图片 用于上传服务器 只缓存50帧
+        int tmp_much_catch_image_len = much_catch_image.size();
+        if (tmp_much_catch_image_len > 50) {
+          much_catch_image.remove(0);
+          much_catch_image.add(tmp_now_image);
+        } else {
+          much_catch_image.add(tmp_now_image);
+        }
+
+        Log.d(TAG, "" + last_car_state +" "+ image_sim_number +" "+ now_image_len +" "+car_speed +" "+ tmp_angle);
+
+        // 结合 陀螺仪 模型检测结果 进行车辆行为分析
+        // 返回 车辆行为结果索引
+        tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(last_car_state, image_sim_number,now_image_len,car_speed, tmp_angle);
+
+        last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+
+        // 相识度对比底片替换 使得last_image与flag相差一定帧数
+        if (timeF_switch_bg <= 0) {
+          timeF_switch_bg = 20;
+          last_image = tmp_last_image;
+          tmp_last_image = tmp_cut_image;
+        } else {
+          timeF_switch_bg = timeF_switch_bg - 1;
+        }
+
+        number = number + 1;
+
+      }else{
+        timeF = timeF - 1;
       }
 
-      number = number + 1;
+      // ================================ 开始进行货物类别检测   ================
+      if (tmp_car_state !=0) {
+        textToShow = classifier.classifyFrame(bitmap);
+      }
 
-    }else{
-        timeF = timeF - 1;
+      textToShow = carBehaviorAnalysisByOpenCv.result_text.get(tmp_car_state) +" \n"+
+              "当前轮廓: " + now_image_len + " \n " +
+              "当前角度：" + tmp_angle + " \n " + textToShow;
+
+      showToast(textToShow);
+      bitmap.recycle();
+      bitmap_analysis.recycle();
     }
-    String textToShow = "";
-    // ================================ 开始进行货物类别检测   ================
-    if (tmp_car_state !=0) {
-      textToShow = classifier.classifyFrame(bitmap);
-    }
 
-    textToShow = carBehaviorAnalysisByOpenCv.result_text.get(tmp_car_state) +" \n"+
-            "当前轮廓: " + now_image_len + " \n " + textToShow;
-
-    showToast(textToShow);
-    bitmap.recycle();
-    bitmap_analysis.recycle();
   }
 
     /** Compares two {@code Size}s based on their areas. */

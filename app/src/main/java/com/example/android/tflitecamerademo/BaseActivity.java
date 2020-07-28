@@ -96,6 +96,7 @@ class BaseActivity extends Activity {
         double verAngle = Math.abs(degreeX);
         //手机横向角度[-180,180]
         double horAngle = Math.abs(degreeY);
+//        Log.d("================", "手机横向角度========>  " + degreeY);
         if (horAngle > 90.0){
             horAngle = horAngle - 90.0;
         }

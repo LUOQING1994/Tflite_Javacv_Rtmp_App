@@ -48,7 +48,7 @@ public class CarBehaviorAnalysisByOpenCv {
         if ((now_image_len > 100) && (now_angle > 20)){ // 线条数大于100 且角度大于20 则有可能出现倾倒行为
             if ((speed < 6) && (image_sim_number != 0)) { // 速度小于6 且相似度没有连续过高
                 tmp_car_state = 1;    // 视为倾倒
-            } else{
+            } else {
                 tmp_car_state = 0;    // 视为运输
             }
         } else if ((now_angle < 10) && (speed < 6)){ // 角度小于10 且速度小于6 则有可能出现装载
