@@ -1,0 +1,4 @@
+rootProject.name='tflite'
+include ':app'
+
+include ':openCVLibrary341'

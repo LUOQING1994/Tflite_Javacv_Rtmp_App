@@ -1,0 +1,22 @@
+*.iml
+.gradle
+.idea
+/local.properties
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+.DS_Store
+/build
+/tmpmob
+/easeui
+/commonlib
+/orc
+/release
+/captures
+.externalNativeBuild
+key.properties
+# Project exclude paths
+/app/build/
+/app/build/intermediates/javac/debug/classes/
+/openCVLibrary341/build/
+/openCVLibrary341/build/intermediates/javac/debug/classes/
