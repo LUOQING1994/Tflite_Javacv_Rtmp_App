@@ -741,7 +741,7 @@ public class Camera2BasicFragment extends Fragment
   // 数据转换的临时变量
   Mat tmp_now_image = new Mat();
   Mat tmp_cut_image = new Mat();
-  Integer tmp_car_state = 0; // 以OpenCV为主 所得到的车辆行为识别结果
+  Integer tmp_car_line_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
   Integer tmp_car_model_state = 0; // 以模型为主 所得到的车辆行为识别结果
 
   Integer now_image_len = 0;  // 当前检测区域的直线数量
@@ -753,9 +753,17 @@ public class Camera2BasicFragment extends Fragment
   boolean is_angle_ok = false;   // 陀螺仪角度是否放置正确
   Integer first_angle = 0;  // 第一次得到陀螺仪数据
 
-  Integer car_state_number = 0;  // 记录运输状态的持续次数
+  Integer car_state_number = 5;  // 记录运输状态的持续次数
 
-  // end ======================  OpenCV为主的算法需要的参数 =====================
+  // end ======================  以霍夫直线为主的算法需要的参数 =====================
+
+  // start ======================  以凸包检测为主的算法需要的参数 =====================
+  Integer now_image_hull = 0;  // 当前检测区域的凸包数量
+  Integer tmp_car_hull_state = 0; // 以凸包检测为主 所得到的车辆行为识别结果
+  Integer last_car_hull_state = 0;  // 记录凸包检测为主的车辆上一时刻状态
+  Integer car_hull_state_number = 5;  // 记录凸包检测为主运输状态的持续次数
+  // end ======================  以凸包检测为主的算法需要的参数 =====================
+
 
   // start ======================  模型为主的算法需要的参数 =====================
 
@@ -782,9 +790,9 @@ public class Camera2BasicFragment extends Fragment
     int tmp_angle = (int) angle_activity.currentAngle;
 
     if (!is_angle_ok){
-      if( (tmp_angle < 20) ){
+      if( (tmp_angle < 10) ){
         first_angle = Math.min(first_angle + 1, 10);
-      } else if(((90 - tmp_angle) < 20)){
+      } else if(((90 - tmp_angle) < 10)){
         first_angle = Math.max(first_angle - 1, -10);
       }
     }
@@ -807,7 +815,7 @@ public class Camera2BasicFragment extends Fragment
         Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
         tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
         now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-
+        now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
         // 初始化基础参数
         if (last_image.cols() == 0) {
           // 默认为当前货物类别
@@ -837,25 +845,35 @@ public class Camera2BasicFragment extends Fragment
 
         Log.d(TAG, "" + last_car_state +" "+ image_sim_number +" "+ now_image_len +" "+car_speed +" "+ tmp_angle);
 
-        // 结合 陀螺仪 模型检测结果 进行车辆行为分析
+        // 结合 陀螺仪 霍夫直线 进行车辆行为分析
         // 返回 车辆行为结果索引
-        tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(last_car_state, image_sim_number,now_image_len,car_speed, tmp_angle);
-
+        tmp_car_line_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle);
         // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
-        if (last_car_state != tmp_car_state){
+        if (last_car_state != tmp_car_line_state){
           car_state_number = Math.max(0,car_state_number -1 );
           if (car_state_number > 0){
-            tmp_car_state = last_car_state;
+            tmp_car_line_state = last_car_state;
           }
         } else {
           car_state_number = 5;
         }
+        last_car_state = tmp_car_line_state;  // 记录当前时刻车辆状态
 
-        last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+        // 结合 陀螺仪 凸包检测 进行车辆行为分析
+        tmp_car_hull_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle);
+        if (last_car_hull_state != tmp_car_hull_state){
+          car_hull_state_number = Math.max(0,car_hull_state_number -1 );
+          if (car_hull_state_number > 0){
+            tmp_car_hull_state = last_car_hull_state;
+          }
+        } else {
+          car_hull_state_number = 5;
+        }
+        last_car_hull_state = tmp_car_hull_state;  // 记录当前时刻车辆状态
+
 
         // 进行模型检测 ===========================================
         model_result = classifier.classifyFrame(bitmap);
-
         // 这里启用以模型为主的检测算法
         tmp_car_model_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
                 ,classifier.CAR_CATEGORY_PROBABILITY, tmp_cut_image, last_image, image_sim_number, tmp_angle, car_speed);
@@ -877,9 +895,11 @@ public class Camera2BasicFragment extends Fragment
         timeF = timeF - 1;
       }
 
-      textToShow = "OpenCV: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-              "模型: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
-              "当前轮廓: " + now_image_len + " \n " +
+      textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_line_state) +" \n"+
+              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
+              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
+              "轮廓数量: " + now_image_len + " \n " +
+              "凸包数量: " + now_image_hull + " \n " +
               "当前角度：" + tmp_angle + " \n " + model_result;
 
       showToast(textToShow);

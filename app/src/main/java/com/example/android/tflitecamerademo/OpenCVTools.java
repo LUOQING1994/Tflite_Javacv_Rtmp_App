@@ -1,11 +1,22 @@
 package com.example.android.tflitecamerademo;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Log;
+import android.widget.ImageView;
+
+import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfFloat;
 import org.opencv.core.MatOfInt;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.Point;
 import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
@@ -125,5 +136,68 @@ public class OpenCVTools {
         // 得到的lines是 n x 1 的Mat
         return lines.rows();
     }
+    /**
+     * 轮廓提取 + 凸包检测
+     */
+    public Integer contours_Hull(Mat image){
 
+        int width = image.width();
+        int height = image.height();
+        // 规定对比区域
+        Rect rect = new Rect((int) (width * 0.1), (int) (height * 0.2), (int) (0.7 * width), (int) (0.8 * height));
+        Mat cut_flag = new Mat(image, rect);
+        double rect_area = cut_flag.width() * cut_flag.height() * 0.15;
+
+        // 高斯滤波，降噪
+        Imgproc.GaussianBlur(cut_flag, cut_flag, new Size(9,9), 2, 2);
+        Mat binary = new Mat();
+        // Canny边缘检测
+        Imgproc.Canny(cut_flag, binary, 20, 155, 3, false);
+
+        Mat morphology = new Mat();
+        // 膨胀 连接边缘
+        Imgproc.dilate(binary, morphology, new Mat(), new Point(-1,-1), 3, 1, new Scalar(1));
+
+        // 轮廓发现
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hierarchy = new Mat();
+        Imgproc.findContours(morphology, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
+
+        // 凸包提取
+        MatOfInt hull = new MatOfInt();
+        MatOfPoint2f approx = new MatOfPoint2f();
+        approx.convertTo(approx, CvType.CV_32F);
+        int contourHull_number = 0;  // 统计满足条件的凸包个数
+
+        for (MatOfPoint contour: contours) {
+            // 边框的凸包
+            Imgproc.convexHull(contour, hull);
+            // 用凸包计算出新的轮廓点
+            Point[] contourPoints = contour.toArray();
+            int[] indices = hull.toArray();
+            List<Point> newPoints = new ArrayList<>();
+            for (int index : indices) {
+                newPoints.add(contourPoints[index]);
+            }
+            MatOfPoint2f contourHull = new MatOfPoint2f();
+            contourHull.fromList(newPoints);
+            // 多边形拟合凸包边框(此时的拟合的精度较低)
+            Imgproc.approxPolyDP(contourHull, approx, Imgproc.arcLength(contourHull, true)*0.02, true);
+            // 筛选出面积大于某一阈值的凸多边形
+            MatOfPoint approxf1 = new MatOfPoint();
+            approx.convertTo(approxf1, CvType.CV_32S);
+            double tmp_area = Math.abs(Imgproc.contourArea(approx));
+            if ( rect_area > tmp_area && tmp_area > 500 &&
+                    Imgproc.isContourConvex(approxf1)) {
+                // 绘制凸包
+//                for (int j = 0; j < approx.rows(); j++) {
+//                    Imgproc.line(cut_flag, approx.toArray()[j], approx.toArray()[(j + 1) % approx.rows()], new Scalar(0,255,255), 2, 8, 0);
+//                }
+                contourHull_number = contourHull_number + 1;
+            }
+        }
+
+        return contourHull_number;
+
+    }
 }
