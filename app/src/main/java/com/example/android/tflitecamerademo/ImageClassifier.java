@@ -235,7 +235,7 @@ public class ImageClassifier {
       // 设置界面只显示一条结果
       CAR_CATEGORY = Integer.valueOf(label.getKey()) - 1;
       CAR_CATEGORY_PROBABILITY = label.getValue();
-      textToShow = String.format("%s: %4.2f",labelChinaText.get(CAR_CATEGORY),label.getValue()) + textToShow;
+      textToShow = String.format("%s \n 类别概率: %4.2f",labelChinaText.get(CAR_CATEGORY),label.getValue()) + textToShow;
     }
     return textToShow;
   }

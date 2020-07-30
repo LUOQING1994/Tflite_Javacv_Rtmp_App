@@ -43,11 +43,11 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <ImageView
-            android:id="@+id/imageView"
-            android:layout_width="133dp"
-            android:layout_height="match_parent"
-            app:srcCompat="@drawable/people" />
+        <Button
+            android:id="@+id/button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Button" />
 
     </FrameLayout>
 

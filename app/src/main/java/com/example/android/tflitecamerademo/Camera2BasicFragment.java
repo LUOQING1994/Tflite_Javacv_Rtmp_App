@@ -776,6 +776,7 @@ public class Camera2BasicFragment extends Fragment
   int tmp_car_category = 6; // 记录车载类别的中间状态
   String model_result = ""; // 记录模型货物分类结果
   String tmp_textToShow = ""; // 记录各种决策算法的识别结果
+  int last_angle = 0; // 记录上一次角度
   // end ======================  模型为主的算法需要的参数 =====================
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
@@ -810,6 +811,15 @@ public class Camera2BasicFragment extends Fragment
       showToast(textToShow);
     } else {
       is_angle_ok = true;
+    }
+    // 防止角度突变
+    if (Math.abs(last_angle - tmp_angle) > 20) {
+      is_angle_ok = false;
+      textToShow = "陀螺仪异常";
+      Log.d("陀螺仪异常", "====================================");
+      showToast(textToShow);
+    } else {
+      last_angle = tmp_angle;   // 记录当前的角度
     }
 
     if (is_angle_ok) {
@@ -868,36 +878,53 @@ public class Camera2BasicFragment extends Fragment
 
             break;
           case 2:// 以霍夫直线为核心，模型为辅助
-            now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-            // 结合 陀螺仪 霍夫直线 进行车辆行为分析
-            // 返回 车辆行为结果索引
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
-
-            tmp_textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "轮廓数量: " + now_image_len + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n ";
-
-            break;
-          case 3:// 以凸包为核心， 模型为辅助
-            now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-            // 结合 陀螺仪 凸包检测 进行车辆行为分析
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
-            tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
-                    "凸包数量: " + now_image_hull + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n ";
-
-            break;
-          case 4:
-            // 霍夫直线和凸包联合判断， 模型为辅助
-            Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
-            Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
             new Thread(new Runnable() {
               @Override
               public void run() {
                 now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-                isLineReturnResult[0] = 1;
+              }
+            }).start();
+            // 结合 陀螺仪 霍夫直线 进行车辆行为分析
+            // 返回 车辆行为结果索引
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
+            if (tmp_car_state != 0) { // 启用模型检测
+              model_result = classifier.classifyFrame(bitmap);
+            }
+            tmp_textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
+                    "轮廓数量: " + now_image_len + " \n " +
+                    "相似度 : " + image_sim + " \n " +
+                    "当前角度：" + tmp_angle + " \n " +
+                    "模型分类：" + model_result;
+
+            break;
+          case 3:// 以凸包为核心， 模型为辅助
+            new Thread(new Runnable() {
+              @Override
+              public void run() {
+                now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+              }
+            }).start();
+            // 结合 陀螺仪 凸包检测 进行车辆行为分析
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
+            if (tmp_car_state != 0) { // 启用模型检测
+              model_result = classifier.classifyFrame(bitmap);
+            }
+            tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+                    "凸包数量: " + now_image_hull + " \n " +
+                    "相似度 : " + image_sim + " \n " +
+                    "当前角度：" + tmp_angle + " \n " +
+                    "模型分类：" + model_result;
+
+            break;
+          case 4:
+            // 霍夫直线和凸包联合判断， 模型为辅助
+//            Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
+//            Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
+            new Thread(new Runnable() {
+              @Override
+              public void run() {
+                now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+//                isLineReturnResult[0] = 1;
               }
             }).start();
 
@@ -905,16 +932,26 @@ public class Camera2BasicFragment extends Fragment
               @Override
               public void run() {
                 now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-                isHullReturnResult[0] = 1;
+//                isHullReturnResult[0] = 1;
               }
             }).start();
 
-            while (isHullReturnResult[0] != 1 || isLineReturnResult[0] != 1){
+//            while (isHullReturnResult[0] != 1 || isLineReturnResult[0] != 1){
+//              // 等待两个线程都返回结果
+//            }
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByLineAndHull(image_sim_number,now_image_len,now_image_hull,car_speed, tmp_angle, props);
+            if (tmp_car_state != 0) { // 启用模型检测
+              model_result = classifier.classifyFrame(bitmap);
             }
-            // todo  ============================================
-            // 待合并
+            tmp_textToShow = "综合检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+                    "凸包数量: " + now_image_hull + " \n " +
+                    "轮廓数量: " + now_image_len + " \n " +
+                    "相似度 : " + image_sim + " \n " +
+                    "当前角度：" + tmp_angle + " \n " +
+                    "模型分类：" + model_result;
             break;
         }
+
         // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
         if (last_car_state != tmp_car_state){
           car_state_number = Math.max(0,car_state_number -1 );
@@ -941,15 +978,6 @@ public class Camera2BasicFragment extends Fragment
 
 
       textToShow = tmp_textToShow;
-//              "相似度 : " + image_sim + " \n " +
-//              "当前角度：" + tmp_angle + " \n " + model_result;
-//      textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_line_state) +" \n"+
-//              "轮廓数量: " + now_image_len + " \n " +
-//              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
-//              "凸包数量: " + now_image_hull + " \n " +
-//              "相似度 : " + image_sim + " \n " +
-//              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
-//              "当前角度：" + tmp_angle + " \n " + model_result;
 
       showToast(textToShow);
       bitmap.recycle();

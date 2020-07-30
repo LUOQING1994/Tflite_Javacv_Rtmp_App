@@ -807,7 +807,7 @@ public class TreeStrategyAnalysis extends Fragment
     // 判断陀螺仪是否有正确安装
     int tmp_angle = (int) angle_activity.currentAngle;
     if (!is_angle_ok){
-      if( (tmp_angle < 10) ){
+      if( (tmp_angle < 15) ){
         first_angle = Math.min(first_angle + 1, 10);
       } else if(((90 - tmp_angle) < 10)){
         first_angle = Math.max(first_angle - 1, -10);
