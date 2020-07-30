@@ -74,7 +74,7 @@ import java.util.concurrent.TimeUnit;
 /** Basic fragments for the Camera. */
 
 /** 继承Fragment 说明该类为一个Fragment子类 并实现了权限回调接口 **/
-public class Camera2BasicFragment extends Fragment
+public class TreeStrategyAnalysis extends Fragment
         implements FragmentCompat.OnRequestPermissionsResultCallback {
 
   /** Tag for the {@link Log}. */
@@ -287,7 +287,7 @@ public class Camera2BasicFragment extends Fragment
     // 若bigEnough有值 则选择所有bigEnough中最小的
     if (bigEnough.size() > 0) {
       return Collections.min(bigEnough, new CompareSizesByArea());
-      // 若notBigEnough有值 则选择所有notBigEnough中最大的
+    // 若notBigEnough有值 则选择所有notBigEnough中最大的
     } else if (notBigEnough.size() > 0) {
       return Collections.max(notBigEnough, new CompareSizesByArea());
     } else {
@@ -296,18 +296,18 @@ public class Camera2BasicFragment extends Fragment
     }
   }
 
-  public static Camera2BasicFragment newInstance() {
-    return new Camera2BasicFragment();
+  public static TreeStrategyAnalysis newInstance() {
+      return new TreeStrategyAnalysis();
   }
 
   /** Layout the preview and buttons. */
   @Override
   public View onCreateView(
           LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-    // 获取角度的activity
+      // 获取角度的activity
     angle_activity = (CameraActivity)getActivity();
     props = angle_activity.props;
-    // 重新初始化算法参数
+      // 重新初始化算法参数
     initializationArg(props);
     Log.d("================", "degreeZ========>" + angle_activity.props);
 
@@ -480,10 +480,10 @@ public class Camera2BasicFragment extends Fragment
         // 若为横屏 则设置数值大的为宽、数值小的为高
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
 //          textureView.setAspectRatio(previewSize.getWidth(), previewSize.getHeight());
-//          Log.d(TAG, "当前屏幕的宽高比：   " + (DeviceInfo.screenHeight(getContext()) + 900)  + " :: "+  DeviceInfo.screenHeight(getContext()));
+          Log.d(TAG, "当前屏幕的宽高比：   " + (DeviceInfo.screenHeight(getContext()) + 900)  + " :: "+  DeviceInfo.screenHeight(getContext()));
 //          textureView.setAspectRatio(DeviceInfo.screenWidth(getContext()), DeviceInfo.screenHeight(getContext()));
           textureView.setAspectRatio(DeviceInfo.screenHeight(getContext()) + 850 , DeviceInfo.screenHeight(getContext()));
-          // 若为竖屏 则设置数值小的为宽、数值大的为高
+        // 若为竖屏 则设置数值小的为宽、数值大的为高
         } else {
           textureView.setAspectRatio(previewSize.getHeight(), previewSize.getWidth());
         }
@@ -519,7 +519,7 @@ public class Camera2BasicFragment extends Fragment
     }
   }
 
-  /** Opens the camera specified by {@link Camera2BasicFragment#cameraId}. */
+  /** Opens the camera specified by {@link TreeStrategyAnalysis#cameraId}. */
   @SuppressLint("MissingPermission")
   private void openCamera(int width, int height) {
     // 用户打开摄像头时 会申请一次调用摄像头权限
@@ -542,7 +542,7 @@ public class Camera2BasicFragment extends Fragment
       if (!cameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
         throw new RuntimeException("Time out waiting to lock camera opening.");
       }
-      // 打开摄像头 并执行回调函数 同时开启一个后台线程
+    // 打开摄像头 并执行回调函数 同时开启一个后台线程
       manager.openCamera(cameraId, stateCallback, backgroundHandler);
     } catch (CameraAccessException e) {
       e.printStackTrace();
@@ -554,7 +554,7 @@ public class Camera2BasicFragment extends Fragment
   private boolean allPermissionsGranted() {
     for (String permission : getRequiredPermissions()) {
       if (ContextCompat.checkSelfPermission(getActivity(), permission)
-              != PackageManager.PERMISSION_GRANTED) {
+          != PackageManager.PERMISSION_GRANTED) {
         return false;
       }
     }
@@ -563,7 +563,7 @@ public class Camera2BasicFragment extends Fragment
 
   @Override
   public void onRequestPermissionsResult(
-          int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+      int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
   }
 
@@ -619,18 +619,18 @@ public class Camera2BasicFragment extends Fragment
 
   /** Takes photos and classify them periodically. */
   private Runnable periodicClassify =
-          new Runnable() {
-            @Override
-            public void run() {
-              synchronized (lock) {
-                if (runClassifier) {
-                  classifyFrame();
-                }
-
-              }
-              backgroundHandler.post(periodicClassify);
+      new Runnable() {
+        @Override
+        public void run() {
+          synchronized (lock) {
+            if (runClassifier) {
+              classifyFrame();
             }
-          };
+
+          }
+          backgroundHandler.post(periodicClassify);
+        }
+      };
 
   /** Creates a new {@link CameraCaptureSession} for camera preview. */
   private void createCameraPreviewSession() {
@@ -654,40 +654,40 @@ public class Camera2BasicFragment extends Fragment
 
       // 在这里，我们为相机预览创建一个CameraCaptureSession。
       cameraDevice.createCaptureSession(
-              Arrays.asList(surface),
-              new CameraCaptureSession.StateCallback() {
+          Arrays.asList(surface),
+          new CameraCaptureSession.StateCallback() {
 
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                  // The camera is already closed
-                  if (null == cameraDevice) {
-                    return;
-                  }
+            @Override
+            public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+              // The camera is already closed
+              if (null == cameraDevice) {
+                return;
+              }
 
-                  // When the session is ready, we start displaying the preview.
-                  // 预览或者拍照时 会使用到的一个核心类
-                  captureSession = cameraCaptureSession;
-                  try {
-                    // 相机预览时自动对焦应。
-                    previewRequestBuilder.set(
-                            CaptureRequest.CONTROL_AF_MODE,
-                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+              // When the session is ready, we start displaying the preview.
+              // 预览或者拍照时 会使用到的一个核心类
+              captureSession = cameraCaptureSession;
+              try {
+                // 相机预览时自动对焦应。
+                previewRequestBuilder.set(
+                    CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 
-                    // Finally, we start displaying the camera preview.
-                    previewRequest = previewRequestBuilder.build();
-                    captureSession.setRepeatingRequest(
-                            previewRequest, captureCallback, backgroundHandler);
-                  } catch (CameraAccessException e) {
-                    e.printStackTrace();
-                  }
-                }
+                // Finally, we start displaying the camera preview.
+                previewRequest = previewRequestBuilder.build();
+                captureSession.setRepeatingRequest(
+                    previewRequest, captureCallback, backgroundHandler);
+              } catch (CameraAccessException e) {
+                e.printStackTrace();
+              }
+            }
 
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                  showToast("Failed");
-                }
-              },
-              null);
+            @Override
+            public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+              showToast("Failed");
+            }
+          },
+          null);
     } catch (CameraAccessException e) {
       e.printStackTrace();
     }
@@ -717,9 +717,9 @@ public class Camera2BasicFragment extends Fragment
       bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
       matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
       float scale =
-              Math.max(
-                      (float) viewHeight / previewSize.getHeight(),
-                      (float) viewWidth / previewSize.getWidth());
+          Math.max(
+              (float) viewHeight / previewSize.getHeight(),
+              (float) viewWidth / previewSize.getWidth());
       matrix.postScale(scale, scale, centerX, centerY);
       matrix.postRotate(90 * (rotation - 2), centerX, centerY);
     } else if (Surface.ROTATION_180 == rotation) {
@@ -730,14 +730,15 @@ public class Camera2BasicFragment extends Fragment
   }
 
   // 需要从新初始化的算法参数
-  public void initializationArg(Properties props){
-    timeF = Integer.parseInt(props.getProperty("timeF"));
-    timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
-    tmp_car_category = Integer.parseInt(props.getProperty("tmp_car_category"));
-    last_car_category = Integer.parseInt(props.getProperty("last_car_category"));
-    car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
-    image_sim_number = Integer.parseInt(props.getProperty("image_sim_number"));
-  }
+    public void initializationArg(Properties props){
+        timeF = Integer.parseInt(props.getProperty("timeF"));
+        timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
+        car_hull_state_number = Integer.parseInt(props.getProperty("car_hull_state_number"));
+        tmp_car_category = Integer.parseInt(props.getProperty("tmp_car_category"));
+        last_car_category = Integer.parseInt(props.getProperty("last_car_category"));
+        car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
+        image_sim_number = Integer.parseInt(props.getProperty("image_sim_number"));
+    }
   // start ======================  OpenCV为主的算法需要的参数 =====================
   int timeF = 3; // 每隔timeF取一张图片
   int timeF_switch_bg = 20;  // 当提取三张图片后 再替换对比底图
@@ -749,7 +750,8 @@ public class Camera2BasicFragment extends Fragment
   // 数据转换的临时变量
   Mat tmp_now_image = new Mat();
   Mat tmp_cut_image = new Mat();
-  Integer tmp_car_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
+  Integer tmp_car_line_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
+  Integer tmp_car_model_state = 0; // 以模型为主 所得到的车辆行为识别结果
 
   Integer now_image_len = 0;  // 当前检测区域的直线数量
 
@@ -767,6 +769,9 @@ public class Camera2BasicFragment extends Fragment
 
   // start ======================  以凸包检测为主的算法需要的参数 =====================
   Integer now_image_hull = 0;  // 当前检测区域的凸包数量
+  Integer tmp_car_hull_state = 0; // 以凸包检测为主 所得到的车辆行为识别结果
+  Integer last_car_hull_state = 0;  // 记录凸包检测为主的车辆上一时刻状态
+  Integer car_hull_state_number = 5;  // 记录凸包检测为主运输状态的持续次数
   // end ======================  以凸包检测为主的算法需要的参数 =====================
 
 
@@ -775,12 +780,19 @@ public class Camera2BasicFragment extends Fragment
   int last_car_category = 6; // 默认上一时刻车载类别为篷布
   int tmp_car_category = 6; // 记录车载类别的中间状态
   String model_result = ""; // 记录模型货物分类结果
-  String tmp_textToShow = ""; // 记录各种决策算法的识别结果
   // end ======================  模型为主的算法需要的参数 =====================
+
+
+  /**
+   *   三种算法同时计算 ====================================
+   */
+
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
 
     String textToShow = "";
+    final Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
+    final Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
     // 获取每一帧的数据
     if (classifier == null || getActivity() == null || cameraDevice == null) {
       showToast("Uninitialized Classifier or invalid context.");
@@ -797,7 +809,7 @@ public class Camera2BasicFragment extends Fragment
     if (!is_angle_ok){
       if( (tmp_angle < 10) ){
         first_angle = Math.min(first_angle + 1, 10);
-      } else if(((90 - tmp_angle) < 15)){
+      } else if(((90 - tmp_angle) < 10)){
         first_angle = Math.max(first_angle - 1, -10);
       }
     }
@@ -815,10 +827,26 @@ public class Camera2BasicFragment extends Fragment
     if (is_angle_ok) {
 
       if (timeF <= 0) {
-        tmp_textToShow = "";
         timeF = Integer.parseInt(props.getProperty("timeF"));
         Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
         tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
+
+        new Thread(new Runnable() {
+          @Override
+          public void run() {
+            now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+            isLineReturnResult[0] = 1;
+          }
+        }).start();
+
+        new Thread(new Runnable() {
+          @Override
+          public void run() {
+            now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+            isHullReturnResult[0] = 1;
+          }
+        }).start();
+
 
         // 初始化基础参数
         if (last_image.cols() == 0) {
@@ -848,83 +876,45 @@ public class Camera2BasicFragment extends Fragment
           much_catch_image.add(tmp_now_image);
         }
 
-        // 启用四种决策算法中的一种
-        int enable_decision = Integer.parseInt(props.getProperty("enable_decision"));
-        switch (enable_decision) {
-          case 1:// 以模型为核心，OpenCV为辅助
-            // 进行模型检测 =============================
-            model_result = classifier.classifyFrame(bitmap);
-            // 这里启用以模型为主的检测算法
-            tmp_car_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
-                    ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, car_speed, props);
-            // 更新上一时刻模型识别货物类别
-            if (tmp_car_category != classifier.CAR_CATEGORY){
-              last_car_category = tmp_car_category;
-              tmp_car_category = classifier.CAR_CATEGORY;
-            }
+        Log.d(TAG, "" + last_car_state +" "+ image_sim_number +" "+ now_image_len +" "+car_speed +" "+ tmp_angle);
 
-            tmp_textToShow = "模型检测: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "相似度 : " + image_sim + " \n " + "当前角度：" + tmp_angle + " \n " + model_result;
-
-            break;
-          case 2:// 以霍夫直线为核心，模型为辅助
-            now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-            // 结合 陀螺仪 霍夫直线 进行车辆行为分析
-            // 返回 车辆行为结果索引
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
-
-            tmp_textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "轮廓数量: " + now_image_len + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n ";
-
-            break;
-          case 3:// 以凸包为核心， 模型为辅助
-            now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-            // 结合 陀螺仪 凸包检测 进行车辆行为分析
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
-            tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
-                    "凸包数量: " + now_image_hull + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n ";
-
-            break;
-          case 4:
-            // 霍夫直线和凸包联合判断， 模型为辅助
-            Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
-            Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-                isLineReturnResult[0] = 1;
-              }
-            }).start();
-
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-                isHullReturnResult[0] = 1;
-              }
-            }).start();
-
-            while (isHullReturnResult[0] != 1 || isLineReturnResult[0] != 1){
-            }
-            // todo  ============================================
-            // 待合并
-            break;
-        }
+        // 结合 陀螺仪 霍夫直线 进行车辆行为分析
+        // 返回 车辆行为结果索引
+        tmp_car_line_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
         // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
-        if (last_car_state != tmp_car_state){
+        if (last_car_state != tmp_car_line_state){
           car_state_number = Math.max(0,car_state_number -1 );
           if (car_state_number > 0){
-            tmp_car_state = last_car_state;
+            tmp_car_line_state = last_car_state;
           }
         } else {
           car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
         }
-        last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+        last_car_state = tmp_car_line_state;  // 记录当前时刻车辆状态
+
+        // 结合 陀螺仪 凸包检测 进行车辆行为分析
+        tmp_car_hull_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
+        if (last_car_hull_state != tmp_car_hull_state){
+          car_hull_state_number = Math.max(0,car_hull_state_number -1 );
+          if (car_hull_state_number > 0){
+            tmp_car_hull_state = last_car_hull_state;
+          }
+        } else {
+          car_hull_state_number = Integer.parseInt(props.getProperty("car_hull_state_number"));
+        }
+        last_car_hull_state = tmp_car_hull_state;  // 记录当前时刻车辆状态
+
+
+        // 进行模型检测 ===========================================
+        model_result = classifier.classifyFrame(bitmap);
+        // 这里启用以模型为主的检测算法
+        tmp_car_model_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
+                ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, car_speed, props);
+        // 更新上一时刻模型识别货物类别
+        if (tmp_car_category != classifier.CAR_CATEGORY){
+          last_car_category = tmp_car_category;
+          tmp_car_category = classifier.CAR_CATEGORY;
+        }
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
         if (timeF_switch_bg <= 0) {
@@ -939,17 +929,13 @@ public class Camera2BasicFragment extends Fragment
         timeF = timeF - 1;
       }
 
-
-      textToShow = tmp_textToShow;
-//              "相似度 : " + image_sim + " \n " +
-//              "当前角度：" + tmp_angle + " \n " + model_result;
-//      textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_line_state) +" \n"+
-//              "轮廓数量: " + now_image_len + " \n " +
-//              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
-//              "凸包数量: " + now_image_hull + " \n " +
-//              "相似度 : " + image_sim + " \n " +
-//              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
-//              "当前角度：" + tmp_angle + " \n " + model_result;
+      textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_line_state) +" \n"+
+              "轮廓数量: " + now_image_len + " \n " +
+              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
+              "凸包数量: " + now_image_hull + " \n " +
+              "相似度 : " + image_sim + " \n " +
+              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
+              "当前角度：" + tmp_angle + " \n " + model_result;
 
       showToast(textToShow);
       bitmap.recycle();
@@ -958,14 +944,14 @@ public class Camera2BasicFragment extends Fragment
 
   }
 
-  /** Compares two {@code Size}s based on their areas. */
+    /** Compares two {@code Size}s based on their areas. */
   private static class CompareSizesByArea implements Comparator<Size> {
 
     @Override
     public int compare(Size lhs, Size rhs) {
       // We cast here to ensure the multiplications won't overflow
       return Long.signum(
-              (long) lhs.getWidth() * lhs.getHeight() - (long) rhs.getWidth() * rhs.getHeight());
+          (long) lhs.getWidth() * lhs.getHeight() - (long) rhs.getWidth() * rhs.getHeight());
     }
   }
 
@@ -986,16 +972,16 @@ public class Camera2BasicFragment extends Fragment
     public Dialog onCreateDialog(Bundle savedInstanceState) {
       final Activity activity = getActivity();
       return new AlertDialog.Builder(activity)
-              .setMessage(getArguments().getString(ARG_MESSAGE))
-              .setPositiveButton(
-                      android.R.string.ok,
-                      new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                          activity.finish();
-                        }
-                      })
-              .create();
+          .setMessage(getArguments().getString(ARG_MESSAGE))
+          .setPositiveButton(
+              android.R.string.ok,
+              new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                  activity.finish();
+                }
+              })
+          .create();
     }
   }
 }

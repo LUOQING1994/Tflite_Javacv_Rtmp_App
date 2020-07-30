@@ -2,8 +2,6 @@ package com.example.android.tflitecamerademo;
 
 import android.util.Log;
 
-import org.opencv.core.Mat;
-
 import java.util.Properties;
 
 public class CarBehaviorAnalysisByModel {
@@ -17,15 +15,13 @@ public class CarBehaviorAnalysisByModel {
      * @param last_car_category    上一次模型的类别
      * @param last_car_state    上一次车辆状态
      * @param now_car_category_probability    当前模型的类别概率
-     * @param now_image    当前画面
-     * @param last_image   上一帧画面
      * @param image_sim_number   前后两帧画面的相似度
      * @param now_angle    当前陀螺仪角度
      * @param gps_speed    当前车载设备速度
      * @return    当前货车状态
      */
     Integer carBehaviorAnalysis(Integer category, Integer last_car_category, Integer last_car_state, Double now_car_category_probability
-            , Mat now_image, Mat last_image, Integer image_sim_number, Integer now_angle, Integer gps_speed, Properties props) {
+            ,Integer image_sim_number, Integer now_angle, Integer gps_speed, Properties props) {
 
         int model_angle_through = Integer.parseInt(props.getProperty("model_angle_through"));
         int model_speed_thought = Integer.parseInt(props.getProperty("model_speed_thought"));
