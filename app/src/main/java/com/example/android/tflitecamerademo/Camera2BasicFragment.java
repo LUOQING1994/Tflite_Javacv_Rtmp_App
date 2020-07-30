@@ -485,7 +485,9 @@ public class Camera2BasicFragment extends Fragment
         // 若为横屏 则设置数值大的为宽、数值小的为高
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
 //          textureView.setAspectRatio(previewSize.getWidth(), previewSize.getHeight());
-          textureView.setAspectRatio(DeviceInfo.screenWidth(getContext()), DeviceInfo.screenHeight(getContext()));
+          Log.d(TAG, "当前屏幕的宽高比：   " + (DeviceInfo.screenHeight(getContext()) + 900)  + " :: "+  DeviceInfo.screenHeight(getContext()));
+//          textureView.setAspectRatio(DeviceInfo.screenWidth(getContext()), DeviceInfo.screenHeight(getContext()));
+          textureView.setAspectRatio(DeviceInfo.screenHeight(getContext()) + 850 , DeviceInfo.screenHeight(getContext()));
         // 若为竖屏 则设置数值小的为宽、数值大的为高
         } else {
           textureView.setAspectRatio(previewSize.getHeight(), previewSize.getWidth());
@@ -750,8 +752,6 @@ public class Camera2BasicFragment extends Fragment
   Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
   List<Mat> much_catch_image = new ArrayList<>(); // 缓存多张图片 用于服务器上传
 
-  int number = 0;  // 用于模拟陀螺仪
-
   // 数据转换的临时变量
   Mat tmp_now_image = new Mat();
   Mat tmp_cut_image = new Mat();
@@ -760,7 +760,7 @@ public class Camera2BasicFragment extends Fragment
 
   Integer now_image_len = 0;  // 当前检测区域的直线数量
 
-  Integer image_sim = 1;  // 计算前后两帧的相似度
+  Integer image_sim = 0;  // 计算前后两帧的相似度
   Integer car_speed = 0;  // 当前车载设备速度
   Integer image_sim_through = 7; // 前后对比图片结果大于该值时 视为相似
   Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
@@ -912,8 +912,11 @@ public class Camera2BasicFragment extends Fragment
         // 这里启用以模型为主的检测算法
         tmp_car_model_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
                 ,classifier.CAR_CATEGORY_PROBABILITY, tmp_cut_image, last_image, image_sim_number, tmp_angle, car_speed, props);
-
-
+        // 更新上一时刻模型识别货物类别
+        if (tmp_car_category != classifier.CAR_CATEGORY){
+          last_car_category = tmp_car_category;
+          tmp_car_category = classifier.CAR_CATEGORY;
+        }
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
         if (timeF_switch_bg <= 0) {
@@ -923,8 +926,6 @@ public class Camera2BasicFragment extends Fragment
         } else {
           timeF_switch_bg = timeF_switch_bg - 1;
         }
-
-        number = number + 1;
 
       }else{
         timeF = timeF - 1;

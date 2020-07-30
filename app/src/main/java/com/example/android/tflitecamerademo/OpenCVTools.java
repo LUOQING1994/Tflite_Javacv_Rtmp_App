@@ -118,7 +118,6 @@ public class OpenCVTools {
                 Rect tmp_rect_2 = new Rect(i * weight_inter, j * height_inter, weight_inter, height_inter);
                 Mat cut_flag2 = new Mat(image2, tmp_rect_2);
                 double tmp_sim_degree = calculate(cut_flag1, cut_flag2);
-                Log.d("================", "tmp_sim_degree ========>" + tmp_sim_degree);
                 if (tmp_sim_degree > 0.8) {
                     result = result + 1;
                 }

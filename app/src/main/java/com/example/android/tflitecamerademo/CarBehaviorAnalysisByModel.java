@@ -31,7 +31,7 @@ public class CarBehaviorAnalysisByModel {
         int model_speed_thought = Integer.parseInt(props.getProperty("model_speed_thought"));
         int image_sim_number_through = Integer.parseInt(props.getProperty("image_sim_number"));
 
-        int tmp_car_state;  // 默认延续上一时刻的车斗状态
+        int tmp_car_state = 0;  // 默认延续上一时刻的车斗状态
         try {
             if (last_car_category == 6){ // 上一时刻为幕布
                 if (category == 6){   // 当前时刻为幕布
@@ -40,10 +40,10 @@ public class CarBehaviorAnalysisByModel {
                     tmp_car_state = 0;  // 视为运输
                 }else{ //当前时刻为有货
                     // 利用陀螺仪数据和相识度 区分倾倒、装载、运输
-                    if (now_angle < model_angle_through){ // 倾斜角度小于20 视为平放
-                        tmp_car_state = 0;
-                    } else{ // 倾斜角度大于20 视为倾倒
+                    if ( now_angle > model_angle_through && gps_speed < model_speed_thought){ // 倾斜角度大于20 视为倾倒
                         tmp_car_state = 1;
+                    } else {
+                        tmp_car_state = 0;
                     }
                 }
             } else if (last_car_category == 5){ // 上一时刻为空车
@@ -52,7 +52,7 @@ public class CarBehaviorAnalysisByModel {
                 }else if (category == 5){ //  当前时刻为空车
                     tmp_car_state = 0;  // 视为运输
                 }else{ //当前时刻为有货
-                    if (image_sim_number != image_sim_number_through) {
+                    if (image_sim_number != image_sim_number_through && gps_speed < model_speed_thought) {
                         tmp_car_state = -1; // 视为装载
                     } else {
                         tmp_car_state = 0; // 视为运输
@@ -69,7 +69,7 @@ public class CarBehaviorAnalysisByModel {
                         if (last_car_state == 1){  // 上一时刻状态为倾倒
                             tmp_car_state = 0;  // 视为运输
                         }else {  // 上一时刻为运输或者装载
-                            if (image_sim_number != image_sim_number_through) {
+                            if (image_sim_number != image_sim_number_through && gps_speed < model_speed_thought) {
                                 tmp_car_state = -1; // 视为装载
                             } else {
                                 tmp_car_state = 0; // 视为运输
