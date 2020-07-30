@@ -40,7 +40,7 @@
             android:layout_height="wrap_content"
             android:paddingLeft="180dp"
             android:textColor="#FFF"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <ImageView

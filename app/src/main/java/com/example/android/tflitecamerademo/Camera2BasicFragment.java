@@ -45,6 +45,7 @@ import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v13.app.FragmentCompat;
 import android.support.v4.content.ContextCompat;
@@ -72,6 +73,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -98,6 +100,7 @@ public class Camera2BasicFragment extends Fragment
   private CarBehaviorAnalysisByModel behaviorAnalysisByModel;
   private OpenCVTools openCVTools;
   private CameraActivity angle_activity;     // 获取该对象中的角度
+  Properties props = new Properties();
   // 设置摄像头最大可接受的分辨率
   /** Max preview width that is guaranteed by Camera2 API */
   private static final int MAX_PREVIEW_WIDTH = 1920;
@@ -115,7 +118,6 @@ public class Camera2BasicFragment extends Fragment
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
               openCamera(width, height);
-
             }
 
             @Override
@@ -300,16 +302,19 @@ public class Camera2BasicFragment extends Fragment
   }
 
   public static Camera2BasicFragment newInstance() {
-    return new Camera2BasicFragment();
+      return new Camera2BasicFragment();
   }
 
   /** Layout the preview and buttons. */
   @Override
   public View onCreateView(
           LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-
-    // 获取角度的activity
+      // 获取角度的activity
     angle_activity = (CameraActivity)getActivity();
+    props = angle_activity.props;
+      // 重新初始化算法参数
+    initializationArg(props);
+    Log.d("================", "degreeZ========>" + angle_activity.props);
 
     return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
   }
@@ -727,6 +732,16 @@ public class Camera2BasicFragment extends Fragment
     textureView.setTransform(matrix);
   }
 
+  // 需要从新初始化的算法参数
+    public void initializationArg(Properties props){
+        timeF = Integer.parseInt(props.getProperty("timeF"));
+        timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
+        car_hull_state_number = Integer.parseInt(props.getProperty("car_hull_state_number"));
+        tmp_car_category = Integer.parseInt(props.getProperty("tmp_car_category"));
+        last_car_category = Integer.parseInt(props.getProperty("last_car_category"));
+        car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
+        image_sim_number = Integer.parseInt(props.getProperty("image_sim_number"));
+    }
   // start ======================  OpenCV为主的算法需要的参数 =====================
   int timeF = 3; // 每隔timeF取一张图片
   int timeF_switch_bg = 20;  // 当提取三张图片后 再替换对比底图
@@ -734,7 +749,6 @@ public class Camera2BasicFragment extends Fragment
   Mat last_image = new Mat();  // 上一时刻的图片
   Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
   List<Mat> much_catch_image = new ArrayList<>(); // 缓存多张图片 用于服务器上传
-
 
   int number = 0;  // 用于模拟陀螺仪
 
@@ -746,9 +760,10 @@ public class Camera2BasicFragment extends Fragment
 
   Integer now_image_len = 0;  // 当前检测区域的直线数量
 
-  double image_sim = 1.0;  // 计算前后两帧的相似度
+  Integer image_sim = 1;  // 计算前后两帧的相似度
   Integer car_speed = 0;  // 当前车载设备速度
-  Integer image_sim_number = 10;  // 前后两帧相似度持续小于7的次数
+  Integer image_sim_through = 7; // 前后对比图片结果大于该值时 视为相似
+  Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
   Integer last_car_state = 0;  // 记录车辆上一时刻状态
   boolean is_angle_ok = false;   // 陀螺仪角度是否放置正确
   Integer first_angle = 0;  // 第一次得到陀螺仪数据
@@ -771,10 +786,12 @@ public class Camera2BasicFragment extends Fragment
   int tmp_car_category = 6; // 记录车载类别的中间状态
   String model_result = ""; // 记录模型货物分类结果
   // end ======================  模型为主的算法需要的参数 =====================
-
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
+
     String textToShow = "";
+    final Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
+    final Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
     // 获取每一帧的数据
     if (classifier == null || getActivity() == null || cameraDevice == null) {
       showToast("Uninitialized Classifier or invalid context.");
@@ -788,7 +805,6 @@ public class Camera2BasicFragment extends Fragment
 
     // 判断陀螺仪是否有正确安装
     int tmp_angle = (int) angle_activity.currentAngle;
-
     if (!is_angle_ok){
       if( (tmp_angle < 10) ){
         first_angle = Math.min(first_angle + 1, 10);
@@ -806,16 +822,34 @@ public class Camera2BasicFragment extends Fragment
     } else {
       is_angle_ok = true;
     }
-    Log.d("================", "currentAngle========>" + tmp_angle + " : " + first_angle);
 
     if (is_angle_ok) {
 
       if (timeF <= 0) {
-        timeF = 3;
+        timeF = Integer.parseInt(props.getProperty("timeF"));
         Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
         tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
-        now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-        now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+//        now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+
+//        now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+
+        new Thread(new Runnable() {
+          @Override
+          public void run() {
+            now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+            isLineReturnResult[0] = 1;
+          }
+        }).start();
+
+        new Thread(new Runnable() {
+          @Override
+          public void run() {
+            now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+            isHullReturnResult[0] = 1;
+          }
+        }).start();
+
+
         // 初始化基础参数
         if (last_image.cols() == 0) {
           // 默认为当前货物类别
@@ -827,12 +861,13 @@ public class Camera2BasicFragment extends Fragment
 
         // 计算前后两帧的相似度
         image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
-        if (image_sim > 7){
-          image_sim_number =Math.max(image_sim_number - 1,0);
+        image_sim_through = Integer.parseInt(props.getProperty("image_sim_through"));
+        if (image_sim > image_sim_through){
+          image_sim_number = Math.max(image_sim_number + 1, Integer.parseInt(props.getProperty("image_sim_number")));
         } else {
-          image_sim_number = Math.min(image_sim_number + 1, 10);
+          image_sim_number = Math.min(image_sim_number - 1, 0);
         }
-
+//        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
 
         //  缓存图片 用于上传服务器 只缓存50帧
         int tmp_much_catch_image_len = much_catch_image.size();
@@ -855,7 +890,7 @@ public class Camera2BasicFragment extends Fragment
             tmp_car_line_state = last_car_state;
           }
         } else {
-          car_state_number = 5;
+          car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
         }
         last_car_state = tmp_car_line_state;  // 记录当前时刻车辆状态
 
@@ -867,7 +902,7 @@ public class Camera2BasicFragment extends Fragment
             tmp_car_hull_state = last_car_hull_state;
           }
         } else {
-          car_hull_state_number = 5;
+          car_hull_state_number = Integer.parseInt(props.getProperty("car_hull_state_number"));
         }
         last_car_hull_state = tmp_car_hull_state;  // 记录当前时刻车辆状态
 
@@ -882,7 +917,7 @@ public class Camera2BasicFragment extends Fragment
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
         if (timeF_switch_bg <= 0) {
-          timeF_switch_bg = 20;
+          timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
           last_image = tmp_last_image;
           tmp_last_image = tmp_cut_image;
         } else {
@@ -896,10 +931,11 @@ public class Camera2BasicFragment extends Fragment
       }
 
       textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_line_state) +" \n"+
-              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
-              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
               "轮廓数量: " + now_image_len + " \n " +
+              "凸包检测: " + openCVTools.result_text.get(tmp_car_hull_state) + " \n " +
               "凸包数量: " + now_image_hull + " \n " +
+              "相似度 : " + image_sim + " \n " +
+              "模型识别: " + openCVTools.result_text.get(tmp_car_model_state) + " \n " +
               "当前角度：" + tmp_angle + " \n " + model_result;
 
       showToast(textToShow);

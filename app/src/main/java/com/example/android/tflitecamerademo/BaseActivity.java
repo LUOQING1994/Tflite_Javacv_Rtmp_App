@@ -12,6 +12,9 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.View;
 
+import java.io.IOException;
+import java.util.Properties;
+
 /**
  * @author zdl
  * date 2020/7/24 16:32
@@ -30,18 +33,25 @@ class BaseActivity extends Activity {
     private float[] gravity = new float[3];
     private float[] geomagnetic = new float[3];
     private float[] values = new float[3];
-
+    Properties props = new Properties();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setupView();
+        try {
+            setupView();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @SuppressLint("MissingPermission")
-    private void setupView() {
+    private void setupView() throws IOException {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         magneticSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        props.load(getApplicationContext().getAssets().open("config.properties"));
+
         sensorManager.registerListener(
                 sensorEventListener,
                 magneticSensor,
@@ -90,13 +100,12 @@ class BaseActivity extends Activity {
 
 //        Log.d("================", "degreeX========>" + degreeX);
 //        Log.d("================", "degreeY========>" + degreeY);
-//        Log.d("================", "degreeZ========>($degreeZ)")
+//        Log.d("================", "degreeZ========>" + props);
 
         //手机竖直方向角度[-90,90]
         double verAngle = Math.abs(degreeX);
         //手机横向角度[-180,180]
         double horAngle = Math.abs(degreeY);
-//        Log.d("================", "手机横向角度========>  " + degreeY);
         if (horAngle > 90.0){
             horAngle = horAngle - 90.0;
         }

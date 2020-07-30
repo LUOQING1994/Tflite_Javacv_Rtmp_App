@@ -2,6 +2,7 @@ package com.example.android.tflitecamerademo;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.ImageView;
 
@@ -48,12 +49,14 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.2), (int) (height * 0.2), (int) (0.7 * width), (int) (0.7 * height));
+        Rect rect = new Rect((int) (width * 0.2), (int) (height * 0.2), (int) (0.6 * width), (int) (0.7 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
 
         // 均值偏移 抹去细小纹理
         Imgproc.medianBlur(cut_flag, blur_flag, 9);
+        // 高斯滤波，降噪
+        Imgproc.GaussianBlur(blur_flag, blur_flag, new Size(9,9), 2, 2);
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
         Imgproc.cvtColor(blur_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
@@ -115,6 +118,7 @@ public class OpenCVTools {
                 Rect tmp_rect_2 = new Rect(i * weight_inter, j * height_inter, weight_inter, height_inter);
                 Mat cut_flag2 = new Mat(image2, tmp_rect_2);
                 double tmp_sim_degree = calculate(cut_flag1, cut_flag2);
+                Log.d("================", "tmp_sim_degree ========>" + tmp_sim_degree);
                 if (tmp_sim_degree > 0.8) {
                     result = result + 1;
                 }
@@ -127,14 +131,41 @@ public class OpenCVTools {
      *
      */
     public Integer contour_extraction( Mat flag){
-        Mat edges = new Mat();
-        Imgproc.Canny(flag,edges,10, 100,3,true);
+        int height_threshold = 200;  // 边缘检测的上边界
+        int line_number = 0;  // 统计满足条件的凸包个数
         Mat lines = new Mat();
-        Imgproc.HoughLinesP(edges, lines,1, Math.PI / 360.0, 40, 30, 40);
-        // 释放内存
-        edges.release();
-        // 得到的lines是 n x 1 的Mat
-        return lines.rows();
+        boolean isFirst = false; // 轮廓提取时 是否第一次满足线条数大于100
+
+        while (line_number < 100 || isFirst ) {   // 动态的调整参数 使其能够适应于夜晚
+            Mat edges = new Mat();
+            Imgproc.Canny(flag,edges,10, height_threshold,3,true);
+
+            Mat morphology = new Mat();
+            // 膨胀 连接边缘
+            Imgproc.dilate(edges, morphology, new Mat(), new Point(-1, -1), 3, 1, new Scalar(1));
+
+            Imgproc.HoughLinesP(morphology, lines,1, Math.PI / 360.0, 40, 30, 40);
+
+            line_number = lines.rows();
+
+            if (line_number < 100 && height_threshold > 20) {
+                height_threshold = height_threshold - 20;
+            } else if (line_number > 100 && height_threshold >= 40 && !isFirst) {
+                height_threshold =  height_threshold - 20;
+                isFirst = true;
+            } else {
+                break;
+            }
+        }
+
+//        // 绘制直线
+//        for (int i = 0; i < line_number; i++) {
+//            int[] oneLine = new int[4];
+//            lines.get(i,0,oneLine);
+//            Imgproc.line(flag, new Point(oneLine[0],oneLine[1]),new Point(oneLine[2],oneLine[3]),new Scalar(0,0,255),2,8,0 );
+//        }
+
+        return line_number;
     }
     /**
      * 轮廓提取 + 凸包检测
@@ -144,57 +175,67 @@ public class OpenCVTools {
         int width = image.width();
         int height = image.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.1), (int) (height * 0.2), (int) (0.7 * width), (int) (0.8 * height));
+        Rect rect = new Rect((int) (width * 0.1), (int) (height * 0.1), (int) (0.7 * width), (int) (0.7 * height));
         Mat cut_flag = new Mat(image, rect);
         double rect_area = cut_flag.width() * cut_flag.height() * 0.15;
 
         // 高斯滤波，降噪
         Imgproc.GaussianBlur(cut_flag, cut_flag, new Size(9,9), 2, 2);
         Mat binary = new Mat();
-        // Canny边缘检测
-        Imgproc.Canny(cut_flag, binary, 20, 155, 3, false);
-
-        Mat morphology = new Mat();
-        // 膨胀 连接边缘
-        Imgproc.dilate(binary, morphology, new Mat(), new Point(-1,-1), 3, 1, new Scalar(1));
-
-        // 轮廓发现
-        List<MatOfPoint> contours = new ArrayList<>();
-        Mat hierarchy = new Mat();
-        Imgproc.findContours(morphology, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
-
-        // 凸包提取
-        MatOfInt hull = new MatOfInt();
-        MatOfPoint2f approx = new MatOfPoint2f();
-        approx.convertTo(approx, CvType.CV_32F);
+        int height_threshold = 200;  // 边缘检测的上边界
         int contourHull_number = 0;  // 统计满足条件的凸包个数
+        while (contourHull_number < 10) {
+            // Canny边缘检测
+            Imgproc.Canny(cut_flag, binary, 10, height_threshold, 3, false);
 
-        for (MatOfPoint contour: contours) {
-            // 边框的凸包
-            Imgproc.convexHull(contour, hull);
-            // 用凸包计算出新的轮廓点
-            Point[] contourPoints = contour.toArray();
-            int[] indices = hull.toArray();
-            List<Point> newPoints = new ArrayList<>();
-            for (int index : indices) {
-                newPoints.add(contourPoints[index]);
+            Mat morphology = new Mat();
+            // 膨胀 连接边缘
+            Imgproc.dilate(binary, morphology, new Mat(), new Point(-1,-1), 3, 1, new Scalar(1));
+
+            // 轮廓发现
+            List<MatOfPoint> contours = new ArrayList<>();
+            Mat hierarchy = new Mat();
+            Imgproc.findContours(morphology, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
+
+            // 凸包提取
+            MatOfInt hull = new MatOfInt();
+            MatOfPoint2f approx = new MatOfPoint2f();
+            approx.convertTo(approx, CvType.CV_32F);
+
+            for (MatOfPoint contour: contours) {
+                // 边框的凸包
+                Imgproc.convexHull(contour, hull);
+                // 用凸包计算出新的轮廓点
+                Point[] contourPoints = contour.toArray();
+                int[] indices = hull.toArray();
+                List<Point> newPoints = new ArrayList<>();
+                for (int index : indices) {
+                    newPoints.add(contourPoints[index]);
+                }
+                MatOfPoint2f contourHull = new MatOfPoint2f();
+                contourHull.fromList(newPoints);
+                // 多边形拟合凸包边框(此时的拟合的精度较低)
+                Imgproc.approxPolyDP(contourHull, approx, Imgproc.arcLength(contourHull, true)*0.02, true);
+                // 筛选出面积大于某一阈值的凸多边形
+                MatOfPoint approxf1 = new MatOfPoint();
+                approx.convertTo(approxf1, CvType.CV_32S);
+                double tmp_area = Math.abs(Imgproc.contourArea(approx));
+                if ( approx.rows() > 3 && rect_area > tmp_area && tmp_area > 1000 &&
+                        Imgproc.isContourConvex(approxf1)) {
+                    // 绘制凸包
+//                    for (int j = 0; j < approx.rows(); j++) {
+//                        Imgproc.line(tmp_cut_flag, approx.toArray()[j], approx.toArray()[(j + 1) % approx.rows()], new Scalar(0,255,255), 2, 8, 0);
+//                    }
+                    contourHull_number = contourHull_number + 1;
+                }
             }
-            MatOfPoint2f contourHull = new MatOfPoint2f();
-            contourHull.fromList(newPoints);
-            // 多边形拟合凸包边框(此时的拟合的精度较低)
-            Imgproc.approxPolyDP(contourHull, approx, Imgproc.arcLength(contourHull, true)*0.02, true);
-            // 筛选出面积大于某一阈值的凸多边形
-            MatOfPoint approxf1 = new MatOfPoint();
-            approx.convertTo(approxf1, CvType.CV_32S);
-            double tmp_area = Math.abs(Imgproc.contourArea(approx));
-            if ( rect_area > tmp_area && tmp_area > 500 &&
-                    Imgproc.isContourConvex(approxf1)) {
-                // 绘制凸包
-//                for (int j = 0; j < approx.rows(); j++) {
-//                    Imgproc.line(cut_flag, approx.toArray()[j], approx.toArray()[(j + 1) % approx.rows()], new Scalar(0,255,255), 2, 8, 0);
-//                }
-                contourHull_number = contourHull_number + 1;
+            if(height_threshold > 10 && contourHull_number < 10){
+                height_threshold = height_threshold - 15;   // 边缘检测的上限以15的梯度下降
+                contourHull_number = 0; // 重置凸包数量
+            } else {
+                break;
             }
+
         }
 
         return contourHull_number;
