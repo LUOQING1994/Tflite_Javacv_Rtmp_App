@@ -882,7 +882,7 @@ public class Camera2BasicFragment extends Fragment
 
         // 结合 陀螺仪 霍夫直线 进行车辆行为分析
         // 返回 车辆行为结果索引
-        tmp_car_line_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle);
+        tmp_car_line_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
         // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
         if (last_car_state != tmp_car_line_state){
           car_state_number = Math.max(0,car_state_number -1 );
@@ -895,7 +895,7 @@ public class Camera2BasicFragment extends Fragment
         last_car_state = tmp_car_line_state;  // 记录当前时刻车辆状态
 
         // 结合 陀螺仪 凸包检测 进行车辆行为分析
-        tmp_car_hull_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle);
+        tmp_car_hull_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
         if (last_car_hull_state != tmp_car_hull_state){
           car_hull_state_number = Math.max(0,car_hull_state_number -1 );
           if (car_hull_state_number > 0){
@@ -911,7 +911,7 @@ public class Camera2BasicFragment extends Fragment
         model_result = classifier.classifyFrame(bitmap);
         // 这里启用以模型为主的检测算法
         tmp_car_model_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
-                ,classifier.CAR_CATEGORY_PROBABILITY, tmp_cut_image, last_image, image_sim_number, tmp_angle, car_speed);
+                ,classifier.CAR_CATEGORY_PROBABILITY, tmp_cut_image, last_image, image_sim_number, tmp_angle, car_speed, props);
 
 
 

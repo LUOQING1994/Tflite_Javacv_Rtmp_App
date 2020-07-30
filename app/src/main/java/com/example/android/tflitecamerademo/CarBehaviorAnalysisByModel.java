@@ -4,6 +4,8 @@ import android.util.Log;
 
 import org.opencv.core.Mat;
 
+import java.util.Properties;
+
 public class CarBehaviorAnalysisByModel {
 
     // 为当前Activity取一个名字 方便调试
@@ -23,7 +25,11 @@ public class CarBehaviorAnalysisByModel {
      * @return    当前货车状态
      */
     Integer carBehaviorAnalysis(Integer category, Integer last_car_category, Integer last_car_state, Double now_car_category_probability
-            , Mat now_image, Mat last_image, Integer image_sim_number, Integer now_angle, Integer gps_speed) {
+            , Mat now_image, Mat last_image, Integer image_sim_number, Integer now_angle, Integer gps_speed, Properties props) {
+
+        int model_angle_through = Integer.parseInt(props.getProperty("model_angle_through"));
+        int model_speed_thought = Integer.parseInt(props.getProperty("model_speed_thought"));
+        int image_sim_number_through = Integer.parseInt(props.getProperty("image_sim_number"));
 
         int tmp_car_state;  // 默认延续上一时刻的车斗状态
         try {
@@ -34,7 +40,7 @@ public class CarBehaviorAnalysisByModel {
                     tmp_car_state = 0;  // 视为运输
                 }else{ //当前时刻为有货
                     // 利用陀螺仪数据和相识度 区分倾倒、装载、运输
-                    if (now_angle < 20){ // 倾斜角度小于20 视为平放
+                    if (now_angle < model_angle_through){ // 倾斜角度小于20 视为平放
                         tmp_car_state = 0;
                     } else{ // 倾斜角度大于20 视为倾倒
                         tmp_car_state = 1;
@@ -46,7 +52,7 @@ public class CarBehaviorAnalysisByModel {
                 }else if (category == 5){ //  当前时刻为空车
                     tmp_car_state = 0;  // 视为运输
                 }else{ //当前时刻为有货
-                    if (image_sim_number != 0) {
+                    if (image_sim_number != image_sim_number_through) {
                         tmp_car_state = -1; // 视为装载
                     } else {
                         tmp_car_state = 0; // 视为运输
@@ -59,11 +65,11 @@ public class CarBehaviorAnalysisByModel {
                     tmp_car_state = 0;  // 视为运输
                 }else{  // 当前时刻为有货
                     // 利用陀螺仪数据和相识度 区分倾倒、装载、运输
-                    if (now_angle < 20){ // 倾斜角度小于20 视为平放
+                    if (now_angle < model_angle_through){ // 倾斜角度小于20 视为平放
                         if (last_car_state == 1){  // 上一时刻状态为倾倒
                             tmp_car_state = 0;  // 视为运输
                         }else {  // 上一时刻为运输或者装载
-                            if (image_sim_number != 0) {
+                            if (image_sim_number != image_sim_number_through) {
                                 tmp_car_state = -1; // 视为装载
                             } else {
                                 tmp_car_state = 0; // 视为运输
