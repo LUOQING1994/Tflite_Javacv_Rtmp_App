@@ -49,14 +49,12 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.2), (int) (height * 0.2), (int) (0.6 * width), (int) (0.7 * height));
+        Rect rect = new Rect((int) (width * 0.23), (int) (height * 0.25), (int) (0.55 * width), (int) (0.55 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
 
         // 均值偏移 抹去细小纹理
         Imgproc.medianBlur(cut_flag, blur_flag, 9);
-        // 高斯滤波，降噪
-        Imgproc.GaussianBlur(blur_flag, blur_flag, new Size(9,9), 2, 2);
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
         Imgproc.cvtColor(blur_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
@@ -134,8 +132,8 @@ public class OpenCVTools {
         int line_number = 0;  // 统计满足条件的凸包个数
         Mat lines = new Mat();
         boolean isFirst = false; // 轮廓提取时 是否第一次满足线条数大于100
-
-        while (line_number < 100 || isFirst ) {   // 动态的调整参数 使其能够适应于夜晚
+        // 设定line_number的值较小 防止动态参数调整过大
+        while (line_number < 20 || isFirst ) {   // 动态的调整参数 使其能够适应于夜晚
             Mat edges = new Mat();
             Imgproc.Canny(flag,edges,10, height_threshold,3,true);
 
@@ -147,45 +145,50 @@ public class OpenCVTools {
 
             line_number = lines.rows();
 
-            if (line_number < 100 && height_threshold > 20) {
+            if (line_number < 20 && height_threshold > 20) {
                 height_threshold = height_threshold - 20;
-            } else if (line_number > 100 && height_threshold >= 40 && !isFirst) {
-                height_threshold =  height_threshold - 20;
+            } else if (line_number > 20 && height_threshold >= 40 && !isFirst) {
+                height_threshold =  height_threshold - 15;
                 isFirst = true;
             } else {
                 break;
             }
         }
 
-//        // 绘制直线
-//        for (int i = 0; i < line_number; i++) {
-//            int[] oneLine = new int[4];
-//            lines.get(i,0,oneLine);
+        // 统计线条直线
+        int number = 0;
+        for (int i = 0; i < line_number; i++) {
+            int[] oneLine = new int[4];
+            lines.get(i,0,oneLine);
+            // 去除过长的线条
+            double tmp_x = Math.pow((oneLine[0] - oneLine[2]), 2);
+            double tmo_y = Math.pow((oneLine[1] - oneLine[3]), 2);
+            int tmp_dis = (int) Math.sqrt(tmo_y + tmp_x);
+            if (tmp_dis < 200) {
+                number = number + 1;
+            }
 //            Imgproc.line(flag, new Point(oneLine[0],oneLine[1]),new Point(oneLine[2],oneLine[3]),new Scalar(0,0,255),2,8,0 );
-//        }
+        }
 
-        return line_number;
+        return number;
     }
     /**
      * 轮廓提取 + 凸包检测
      */
     public Integer contours_Hull(Mat image){
 
+        // 高斯滤波，降噪  只对凸包检测进行处理
+        Imgproc.GaussianBlur(image, image, new Size(9,9), 2, 2);
         int width = image.width();
         int height = image.height();
-        // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.1), (int) (height * 0.1), (int) (0.7 * width), (int) (0.7 * height));
-        Mat cut_flag = new Mat(image, rect);
-        double rect_area = cut_flag.width() * cut_flag.height() * 0.15;
+        double rect_area = width * height * 0.15;
 
-        // 高斯滤波，降噪
-        Imgproc.GaussianBlur(cut_flag, cut_flag, new Size(9,9), 2, 2);
         Mat binary = new Mat();
         int height_threshold = 200;  // 边缘检测的上边界
         int contourHull_number = 0;  // 统计满足条件的凸包个数
         while (contourHull_number < 10) {
             // Canny边缘检测
-            Imgproc.Canny(cut_flag, binary, 10, height_threshold, 3, false);
+            Imgproc.Canny(image, binary, 10, height_threshold, 3, false);
 
             Mat morphology = new Mat();
             // 膨胀 连接边缘

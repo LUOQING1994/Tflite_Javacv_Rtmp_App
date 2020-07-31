@@ -816,7 +816,6 @@ public class Camera2BasicFragment extends Fragment
     if (Math.abs(last_angle - tmp_angle) > 20) {
       is_angle_ok = false;
       textToShow = "陀螺仪异常";
-      Log.d("陀螺仪异常", "====================================");
       showToast(textToShow);
     } else {
       last_angle = tmp_angle;   // 记录当前的角度
