@@ -55,6 +55,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -796,32 +797,21 @@ public class Camera2BasicFragment extends Fragment
     // 判断陀螺仪是否有正确安装
     int tmp_angle = (int) angle_activity.currentAngle;
     if (!is_angle_ok){
-      if( (tmp_angle < 10) ){
+      if( (tmp_angle < 15) ){
         first_angle = Math.min(first_angle + 1, 10);
       } else if(((90 - tmp_angle) < 15)){
         first_angle = Math.max(first_angle - 1, -10);
       }
     }
-
     if (first_angle == -10) {
       tmp_angle = 90 - tmp_angle;
       is_angle_ok = true;
-    } else if(first_angle != 10){
-      textToShow = "设备没有正确放置！";
-      showToast(textToShow);
-    } else {
+    }  else if (first_angle == 10) {
       is_angle_ok = true;
     }
-    // 防止角度突变
-    if (Math.abs(last_angle - tmp_angle) > 20) {
-      is_angle_ok = false;
-      textToShow = "陀螺仪异常";
-      showToast(textToShow);
-    } else {
+    Log.i(TAG, "================== > " + last_angle  + "  " + tmp_angle);
+    if (is_angle_ok && Math.abs(last_angle - tmp_angle) < 25) {  // 防止角度突变
       last_angle = tmp_angle;   // 记录当前的角度
-    }
-
-    if (is_angle_ok) {
 
       if (timeF <= 0) {
         tmp_textToShow = "";
@@ -837,7 +827,6 @@ public class Camera2BasicFragment extends Fragment
           last_image = tmp_cut_image;
           tmp_last_image = tmp_cut_image;
         }
-
         // 计算前后两帧的相似度
         image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
         image_sim_through = Integer.parseInt(props.getProperty("image_sim_through"));
@@ -889,11 +878,10 @@ public class Camera2BasicFragment extends Fragment
             if (tmp_car_state != 0) { // 启用模型检测
               model_result = classifier.classifyFrame(bitmap);
             }
-            tmp_textToShow = "霍夫直线: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
+            tmp_textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
                     "轮廓数量: " + now_image_len + " \n " +
                     "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " +
-                    "模型分类：" + model_result;
+                    "当前角度：" + tmp_angle + " \n " + model_result;
 
             break;
           case 3:// 以凸包为核心， 模型为辅助
@@ -911,8 +899,7 @@ public class Camera2BasicFragment extends Fragment
             tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
                     "凸包数量: " + now_image_hull + " \n " +
                     "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " +
-                    "模型分类：" + model_result;
+                    "当前角度：" + tmp_angle + " \n " + model_result;
 
             break;
           case 4:
@@ -981,8 +968,10 @@ public class Camera2BasicFragment extends Fragment
       showToast(textToShow);
       bitmap.recycle();
       bitmap_analysis.recycle();
+    } else {
+      textToShow = "陀螺仪异常！";
+      showToast(textToShow);
     }
-
   }
 
   /** Compares two {@code Size}s based on their areas. */

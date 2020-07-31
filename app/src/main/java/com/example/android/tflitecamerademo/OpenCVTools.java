@@ -49,7 +49,7 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.23), (int) (height * 0.25), (int) (0.55 * width), (int) (0.55 * height));
+        Rect rect = new Rect((int) (width * 0.24), (int) (height * 0.31), (int) (0.49 * width), (int) (0.55 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
 

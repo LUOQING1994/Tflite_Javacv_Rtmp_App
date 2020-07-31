@@ -24,6 +24,8 @@ public class CarBehaviorAnalysisByOpenCv {
         int line_speed_thought = Integer.parseInt(props.getProperty("line_speed_thought"));
         int image_sim_number_through = Integer.parseInt(props.getProperty("image_sim_number"));
         int tmp_car_state;
+        // 为什么不直接用角度来判定倾倒？
+        // 在上坡或者运输过程中 陀螺仪或许会大于设定的阈值 而这种情况发生的大多数时刻 篷布是密闭的 此时线条少
         if ((now_image_len > line_number_through) && (now_angle > line_angle_through)){ // 线条数大于100 且角度大于20 则有可能出现倾倒行为
             if ((speed < line_speed_thought) && (image_sim_number != image_sim_number_through)) { // 速度小于6 且相似度没有连续过高
                 tmp_car_state = 1;    // 视为倾倒
@@ -36,6 +38,8 @@ public class CarBehaviorAnalysisByOpenCv {
             } else {
                 tmp_car_state = 0;    // 视为运输
             }
+        } else if ((now_angle > (line_angle_through + 5)) && (speed < line_speed_thought)){
+            tmp_car_state = 1;   // 视为倾倒
         } else {  // 其他情况 视为运输
             tmp_car_state = 0;
         }
