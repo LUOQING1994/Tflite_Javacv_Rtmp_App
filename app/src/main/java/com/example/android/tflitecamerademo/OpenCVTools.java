@@ -160,11 +160,11 @@ public class OpenCVTools {
         for (int i = 0; i < line_number; i++) {
             int[] oneLine = new int[4];
             lines.get(i,0,oneLine);
-            // 去除过长的线条
+            // 去除过长和太短的线条
             double tmp_x = Math.pow((oneLine[0] - oneLine[2]), 2);
             double tmo_y = Math.pow((oneLine[1] - oneLine[3]), 2);
             int tmp_dis = (int) Math.sqrt(tmo_y + tmp_x);
-            if (tmp_dis < 200) {
+            if (tmp_dis > 35 && tmp_dis < 200 && number < 1000) {
                 number = number + 1;
             }
 //            Imgproc.line(flag, new Point(oneLine[0],oneLine[1]),new Point(oneLine[2],oneLine[3]),new Scalar(0,0,255),2,8,0 );

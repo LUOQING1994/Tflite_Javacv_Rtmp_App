@@ -310,7 +310,7 @@ public class Camera2BasicFragment extends Fragment
     props = angle_activity.props;
     // 重新初始化算法参数
     initializationArg(props);
-    Log.d("================", "degreeZ========>" + angle_activity.props);
+//    Log.d("================", "degreeZ========>" + angle_activity.props);
 
     return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
   }
@@ -755,7 +755,6 @@ public class Camera2BasicFragment extends Fragment
   Integer now_image_len = 0;  // 当前检测区域的直线数量
 
   Integer image_sim = 0;  // 计算前后两帧的相似度
-  Integer car_speed = 0;  // 当前车载设备速度
   Integer image_sim_through = 7; // 前后对比图片结果大于该值时 视为相似
   Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
   Integer last_car_state = 0;  // 记录车辆上一时刻状态
@@ -796,6 +795,9 @@ public class Camera2BasicFragment extends Fragment
 
     // 判断陀螺仪是否有正确安装
     int tmp_angle = (int) angle_activity.currentAngle;
+    // ======================================== 这里接入车载设备速度
+    int tmp_speed = (int) angle_activity.currentSpeed;
+
     if (!is_angle_ok){
       if( (tmp_angle < 15) ){
         first_angle = Math.min(first_angle + 1, 10);
@@ -809,7 +811,7 @@ public class Camera2BasicFragment extends Fragment
     }  else if (first_angle == 10) {
       is_angle_ok = true;
     }
-    Log.i(TAG, "================== > " + last_angle  + "  " + tmp_angle);
+//    Log.i(TAG, "================== > " + last_angle  + "  " + tmp_angle);
     if (is_angle_ok && Math.abs(last_angle - tmp_angle) < 25) {  // 防止角度突变
       last_angle = tmp_angle;   // 记录当前的角度
 
@@ -854,7 +856,7 @@ public class Camera2BasicFragment extends Fragment
             model_result = classifier.classifyFrame(bitmap);
             // 这里启用以模型为主的检测算法
             tmp_car_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
-                    ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, car_speed, props);
+                    ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, tmp_speed, props);
             // 更新上一时刻模型识别货物类别
             if (tmp_car_category != classifier.CAR_CATEGORY){
               last_car_category = tmp_car_category;
@@ -862,7 +864,9 @@ public class Camera2BasicFragment extends Fragment
             }
 
             tmp_textToShow = "模型检测: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "相似度 : " + image_sim + " \n " + "当前角度：" + tmp_angle + " \n " + model_result;
+                    "相似度 : " + image_sim + " \n " + "当前角度：" + tmp_angle + " \n "
+                    + "当前速度：" + tmp_speed + " \n "
+                    + model_result;
 
             break;
           case 2:// 以霍夫直线为核心，模型为辅助
@@ -874,14 +878,15 @@ public class Camera2BasicFragment extends Fragment
             }).start();
             // 结合 陀螺仪 霍夫直线 进行车辆行为分析
             // 返回 车辆行为结果索引
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,car_speed, tmp_angle, props);
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,tmp_speed, tmp_angle, props);
             if (tmp_car_state != 0) { // 启用模型检测
               model_result = classifier.classifyFrame(bitmap);
             }
             tmp_textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
                     "轮廓数量: " + now_image_len + " \n " +
                     "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " + model_result;
+                    "当前角度：" + tmp_angle + " \n " +
+                    "当前速度：" + tmp_speed + " \n " + model_result;
 
             break;
           case 3:// 以凸包为核心， 模型为辅助
@@ -892,14 +897,16 @@ public class Camera2BasicFragment extends Fragment
               }
             }).start();
             // 结合 陀螺仪 凸包检测 进行车辆行为分析
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,car_speed, tmp_angle, props);
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,tmp_speed, tmp_angle, props);
             if (tmp_car_state != 0) { // 启用模型检测
               model_result = classifier.classifyFrame(bitmap);
             }
             tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
                     "凸包数量: " + now_image_hull + " \n " +
                     "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " + model_result;
+                    "当前角度：" + tmp_angle + " \n " +
+                    "当前速度：" + tmp_speed + " \n "
+                    + model_result;
 
             break;
           case 4:
@@ -925,7 +932,7 @@ public class Camera2BasicFragment extends Fragment
 //            while (isHullReturnResult[0] != 1 || isLineReturnResult[0] != 1){
 //              // 等待两个线程都返回结果
 //            }
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByLineAndHull(image_sim_number,now_image_len,now_image_hull,car_speed, tmp_angle, props);
+            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByLineAndHull(image_sim_number,now_image_len,now_image_hull,tmp_speed, tmp_angle, props);
             if (tmp_car_state != 0) { // 启用模型检测
               model_result = classifier.classifyFrame(bitmap);
             }
