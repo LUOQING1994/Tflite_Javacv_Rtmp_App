@@ -163,7 +163,8 @@ class BaseActivity extends Activity {
         if (horAngle > 90.0) {
             horAngle = horAngle - 90.0;
         }
-        currentAngle = Math.max(verAngle, horAngle);
+//        currentAngle = Math.max(verAngle, horAngle);
+        currentAngle = degreeY;
 //        Log.d("================", "currentAngle========>" + currentAngle);
     }
 

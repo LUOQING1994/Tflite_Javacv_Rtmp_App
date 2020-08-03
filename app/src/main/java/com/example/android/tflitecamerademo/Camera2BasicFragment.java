@@ -730,7 +730,7 @@ public class Camera2BasicFragment extends Fragment
     textureView.setTransform(matrix);
   }
 
-  // 需要从新初始化的算法参数
+  // 需要根据配置文件重新初始化算法参数
   public void initializationArg(Properties props){
     timeF = Integer.parseInt(props.getProperty("timeF"));
     timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
@@ -774,13 +774,12 @@ public class Camera2BasicFragment extends Fragment
 
   int last_car_category = 6; // 默认上一时刻车载类别为篷布
   int tmp_car_category = 6; // 记录车载类别的中间状态
-  String model_result = ""; // 记录模型货物分类结果
   String tmp_textToShow = ""; // 记录各种决策算法的识别结果
   int last_angle = 0; // 记录上一次角度
   // end ======================  模型为主的算法需要的参数 =====================
   /** Classifies a frame from the preview stream. */
   private void classifyFrame() {
-
+    String model_result = ""; // 记录模型货物分类结果
     String textToShow = "";
     // 获取每一帧的数据
     if (classifier == null || getActivity() == null || cameraDevice == null) {
@@ -793,190 +792,179 @@ public class Camera2BasicFragment extends Fragment
     Bitmap bitmap_analysis =
             textureView.getBitmap(ImageClassifier.Analysis_IMG_SIZE_X, ImageClassifier.Analysis_IMG_SIZE_Y);
 
-    // 判断陀螺仪是否有正确安装
-    int tmp_angle = (int) angle_activity.currentAngle;
+    int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
+
     // ======================================== 这里接入车载设备速度
     int tmp_speed = (int) angle_activity.currentSpeed;
-
-    if (!is_angle_ok){
-      if( (tmp_angle < 15) ){
-        first_angle = Math.min(first_angle + 1, 10);
-      } else if(((90 - tmp_angle) < 15)){
-        first_angle = Math.max(first_angle - 1, -10);
-      }
+    // 判断陀螺仪是否有正确安装
+    int current_angle = (int) angle_activity.currentAngle;
+    if (init_angle == 0) { // 保存设备角度
+      props.setProperty("tmp_first_angle", String.valueOf(current_angle));
+      last_angle = 0;   // 记录当前的角度
     }
-    if (first_angle == -10) {
-      tmp_angle = 90 - tmp_angle;
-      is_angle_ok = true;
-    }  else if (first_angle == 10) {
-      is_angle_ok = true;
-    }
-//    Log.i(TAG, "================== > " + last_angle  + "  " + tmp_angle);
-    if (is_angle_ok && Math.abs(last_angle - tmp_angle) < 25) {  // 防止角度突变
-      last_angle = tmp_angle;   // 记录当前的角度
+    if (init_angle == 1) {
+      int tmp_first_angle = Integer.parseInt(props.getProperty("tmp_first_angle"));
+      int tmp_angle = Math.abs(current_angle - tmp_first_angle);
+      if ( Math.abs(last_angle - tmp_angle) < 25 ){
+        if (timeF <= 0) { // 防止角度突变
+          last_angle = tmp_angle;   // 记录当前的角度
+          tmp_textToShow = "";
+          timeF = Integer.parseInt(props.getProperty("timeF"));
+          Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
+          tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
 
-      if (timeF <= 0) {
-        tmp_textToShow = "";
-        timeF = Integer.parseInt(props.getProperty("timeF"));
-        Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
-        tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
-
-        // 初始化基础参数
-        if (last_image.cols() == 0) {
-          // 默认为当前货物类别
-          last_car_category = classifier.CAR_CATEGORY;
-          tmp_car_category = classifier.CAR_CATEGORY;
-          last_image = tmp_cut_image;
-          tmp_last_image = tmp_cut_image;
-        }
-        // 计算前后两帧的相似度
-        image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
-        image_sim_through = Integer.parseInt(props.getProperty("image_sim_through"));
-        if (image_sim > image_sim_through){
-          image_sim_number = Math.max(image_sim_number + 1, Integer.parseInt(props.getProperty("image_sim_number")));
-        } else {
-          image_sim_number = Math.min(image_sim_number - 1, 0);
-        }
+          // 初始化基础参数
+          if (last_image.cols() == 0) {
+            // 默认为当前货物类别
+            last_car_category = classifier.CAR_CATEGORY;
+            tmp_car_category = classifier.CAR_CATEGORY;
+            last_image = tmp_cut_image;
+            tmp_last_image = tmp_cut_image;
+          }
+          // 计算前后两帧的相似度
+          image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
+          image_sim_through = Integer.parseInt(props.getProperty("image_sim_through"));
+          if (image_sim > image_sim_through){
+            image_sim_number = Math.min(image_sim_number + 1, Integer.parseInt(props.getProperty("image_sim_number")));
+          } else {
+            image_sim_number = Math.max(image_sim_number - 1, 0);
+          }
 //        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
 
-        //  缓存图片 用于上传服务器 只缓存50帧
-        int tmp_much_catch_image_len = much_catch_image.size();
-        if (tmp_much_catch_image_len > 50) {
-          much_catch_image.remove(0);
-          much_catch_image.add(tmp_now_image);
-        } else {
-          much_catch_image.add(tmp_now_image);
-        }
-
-        // 启用四种决策算法中的一种
-        int enable_decision = Integer.parseInt(props.getProperty("enable_decision"));
-        switch (enable_decision) {
-          case 1:// 以模型为核心，OpenCV为辅助
-            // 进行模型检测 =============================
-            model_result = classifier.classifyFrame(bitmap);
-            // 这里启用以模型为主的检测算法
-            tmp_car_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
-                    ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, tmp_speed, props);
-            // 更新上一时刻模型识别货物类别
-            if (tmp_car_category != classifier.CAR_CATEGORY){
-              last_car_category = tmp_car_category;
-              tmp_car_category = classifier.CAR_CATEGORY;
-            }
-
-            tmp_textToShow = "模型检测: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "相似度 : " + image_sim + " \n " + "当前角度：" + tmp_angle + " \n "
-                    + "当前速度：" + tmp_speed + " \n "
-                    + model_result;
-
-            break;
-          case 2:// 以霍夫直线为核心，模型为辅助
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-              }
-            }).start();
-            // 结合 陀螺仪 霍夫直线 进行车辆行为分析
-            // 返回 车辆行为结果索引
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,tmp_speed, tmp_angle, props);
-            if (tmp_car_state != 0) { // 启用模型检测
-              model_result = classifier.classifyFrame(bitmap);
-            }
-            tmp_textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
-                    "轮廓数量: " + now_image_len + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " +
-                    "当前速度：" + tmp_speed + " \n " + model_result;
-
-            break;
-          case 3:// 以凸包为核心， 模型为辅助
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-              }
-            }).start();
-            // 结合 陀螺仪 凸包检测 进行车辆行为分析
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,tmp_speed, tmp_angle, props);
-            if (tmp_car_state != 0) { // 启用模型检测
-              model_result = classifier.classifyFrame(bitmap);
-            }
-            tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
-                    "凸包数量: " + now_image_hull + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " +
-                    "当前速度：" + tmp_speed + " \n "
-                    + model_result;
-
-            break;
-          case 4:
-            // 霍夫直线和凸包联合判断， 模型为辅助
-//            Integer[] isLineReturnResult = {0}; // 霍夫直线是否返回了结果
-//            Integer[] isHullReturnResult = {0}; // 凸包检测是否返回了结果
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
-//                isLineReturnResult[0] = 1;
-              }
-            }).start();
-
-            new Thread(new Runnable() {
-              @Override
-              public void run() {
-                now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
-//                isHullReturnResult[0] = 1;
-              }
-            }).start();
-
-//            while (isHullReturnResult[0] != 1 || isLineReturnResult[0] != 1){
-//              // 等待两个线程都返回结果
-//            }
-            tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByLineAndHull(image_sim_number,now_image_len,now_image_hull,tmp_speed, tmp_angle, props);
-            if (tmp_car_state != 0) { // 启用模型检测
-              model_result = classifier.classifyFrame(bitmap);
-            }
-            tmp_textToShow = "综合检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
-                    "凸包数量: " + now_image_hull + " \n " +
-                    "轮廓数量: " + now_image_len + " \n " +
-                    "相似度 : " + image_sim + " \n " +
-                    "当前角度：" + tmp_angle + " \n " +
-                    "模型分类：" + model_result;
-            break;
-        }
-
-        // 当出现运输时 若能持续保持5次以上 才视为运输 否则 沿用前一时刻状态
-        if (last_car_state != tmp_car_state){
-          car_state_number = Math.max(0,car_state_number -1 );
-          if (car_state_number > 0){
-            tmp_car_state = last_car_state;
+          //  缓存图片 用于上传服务器 只缓存50帧
+          int tmp_much_catch_image_len = much_catch_image.size();
+          if (tmp_much_catch_image_len > 50) {
+            much_catch_image.remove(0);
+            much_catch_image.add(tmp_now_image);
+          } else {
+            much_catch_image.add(tmp_now_image);
           }
-        } else {
-          car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
-        }
-        last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
 
-        // 相识度对比底片替换 使得last_image与flag相差一定帧数
-        if (timeF_switch_bg <= 0) {
-          timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
-          last_image = tmp_last_image;
-          tmp_last_image = tmp_cut_image;
-        } else {
-          timeF_switch_bg = timeF_switch_bg - 1;
-        }
+          // 启用四种决策算法中的一种
+          int enable_decision = Integer.parseInt(props.getProperty("enable_decision"));
+          switch (enable_decision) {
+            case 1:// 以模型为核心，OpenCV为辅助
+              // 进行模型检测 =============================
+              model_result = classifier.classifyFrame(bitmap);
+              // 这里启用以模型为主的检测算法
+              tmp_car_state = behaviorAnalysisByModel.carBehaviorAnalysis(classifier.CAR_CATEGORY, last_car_category, last_car_state
+                      ,classifier.CAR_CATEGORY_PROBABILITY, image_sim_number, tmp_angle, tmp_speed, props);
+              // 更新上一时刻模型识别货物类别
+              if (tmp_car_category != classifier.CAR_CATEGORY){
+                last_car_category = tmp_car_category;
+                tmp_car_category = classifier.CAR_CATEGORY;
+              }
 
-      }else{
-        timeF = timeF - 1;
+              tmp_textToShow = "模型检测: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
+                      "相似度 : " + image_sim_number + " \n " + "当前角度：" + tmp_angle + " \n "
+                      + "当前速度：" + tmp_speed + " \n "
+                      + model_result;
+
+              break;
+            case 2:// 以霍夫直线为核心，模型为辅助
+              new Thread(new Runnable() {
+                @Override
+                public void run() {
+                  now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+                }
+              }).start();
+              // 结合 陀螺仪 霍夫直线 进行车辆行为分析
+              // 返回 车辆行为结果索引
+              tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,tmp_speed, tmp_angle, props);
+              if (tmp_car_state != 0) { // 启用模型检测
+                model_result = classifier.classifyFrame(bitmap);
+              }
+              tmp_textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
+                      "轮廓数量: " + now_image_len + " \n " +
+                      "相似度 : " + image_sim_number + " \n " +
+                      "当前角度：" + tmp_angle + " \n " +
+                      "当前速度：" + tmp_speed + " \n " + model_result;
+
+              break;
+            case 3:// 以凸包为核心， 模型为辅助
+              new Thread(new Runnable() {
+                @Override
+                public void run() {
+                  now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+                }
+              }).start();
+              // 结合 陀螺仪 凸包检测 进行车辆行为分析
+              tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,tmp_speed, tmp_angle, props);
+              if (tmp_car_state != 0) { // 启用模型检测
+                model_result = classifier.classifyFrame(bitmap);
+              }
+              tmp_textToShow = "凸包检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+                      "凸包数量: " + now_image_hull + " \n " +
+                      "相似度 : " + image_sim_number + " \n " +
+                      "当前角度：" + tmp_angle + " \n " +
+                      "当前速度：" + tmp_speed + " \n "
+                      + model_result;
+
+              break;
+            case 4:
+              // 霍夫直线和凸包联合判断， 模型为辅助
+              new Thread(new Runnable() {
+                @Override
+                public void run() {
+                  now_image_len = openCVTools.contour_extraction(tmp_cut_image); // 获取图片轮廓
+                }
+              }).start();
+
+              new Thread(new Runnable() {
+                @Override
+                public void run() {
+                  now_image_hull = openCVTools.contours_Hull(tmp_cut_image); // 获取图片凸包数量
+                }
+              }).start();
+
+              tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByLineAndHull(image_sim_number,now_image_len,now_image_hull,tmp_speed, tmp_angle, props);
+              if (tmp_car_state != 0) { // 启用模型检测
+                model_result = classifier.classifyFrame(bitmap);
+              }
+              tmp_textToShow = "综合检测: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+                      "凸包数量: " + now_image_hull + " \n " +
+                      "轮廓数量: " + now_image_len + " \n " +
+                      "相似度 : " + image_sim_number + " \n " +
+                      "当前角度：" + tmp_angle + " \n " +
+                      "模型分类：" + model_result;
+              break;
+          }
+
+          // 当出现运输时 若能持续保持10次以上 才视为运输 否则 沿用前一时刻状态
+          if (last_car_state != tmp_car_state){
+            car_state_number = Math.max(0,car_state_number -1 );
+            if (car_state_number > 0){
+              tmp_car_state = last_car_state;
+            }
+          } else {
+            car_state_number = Integer.parseInt(props.getProperty("car_state_number"));
+          }
+          last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+
+          // 相识度对比底片替换 使得last_image与flag相差一定帧数
+          if (timeF_switch_bg <= 0) {
+            timeF_switch_bg = Integer.parseInt(props.getProperty("timeF_switch_bg"));
+            last_image = tmp_last_image;
+            tmp_last_image = tmp_cut_image;
+          } else {
+            timeF_switch_bg = timeF_switch_bg - 1;
+          }
+
+        }else{
+          timeF = timeF - 1;
+        }
+        textToShow = tmp_textToShow;
+
+        showToast(textToShow);
+        bitmap.recycle();
+        bitmap_analysis.recycle();
+      } else {
+        textToShow = "陀螺仪异常！";
+        showToast(textToShow);
       }
 
-
-      textToShow = tmp_textToShow;
-
-      showToast(textToShow);
-      bitmap.recycle();
-      bitmap_analysis.recycle();
     } else {
-      textToShow = "陀螺仪异常！";
+      textToShow = "请点击按钮开始检测！";
       showToast(textToShow);
     }
   }

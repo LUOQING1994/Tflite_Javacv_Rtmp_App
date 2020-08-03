@@ -19,13 +19,15 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 
 /** Main {@code Activity} class for the Camera app. */
-public class CameraActivity extends BaseActivity {
+public class CameraActivity extends BaseActivity implements View.OnClickListener{
   String TAG = "CameraActivity";
 
   @Override
@@ -33,6 +35,12 @@ public class CameraActivity extends BaseActivity {
     super.onCreate(savedInstanceState);
     // 在初始化主Activity时 设置当前显示窗口的xml文件
     setContentView(R.layout.activity_camera);
+
+// 创建一个Button对象 并指向前面UI界面中的button组件
+    Button btn = (Button)findViewById(R.id.button);
+    // 为id等于test_button的按钮对象添加一个点击事件
+    // 继承View.OnClickListener接口
+    btn.setOnClickListener(this);
 
     boolean success = OpenCVLoader.initDebug();
     if (success) {
@@ -55,4 +63,14 @@ public class CameraActivity extends BaseActivity {
     }
   }
 
+  @Override
+  public void onClick(View view) {
+      // 主要用来初始化陀螺仪角度
+      // 当按钮被点击时 更改配置文件中的陀螺仪相关参数
+    if (Integer.parseInt(this.props.getProperty("initi_angle")) == 1){
+      this.props.setProperty("initi_angle", String.valueOf(0));
+    } else {
+      this.props.setProperty("initi_angle", String.valueOf(1));
+    }
+  }
 }
