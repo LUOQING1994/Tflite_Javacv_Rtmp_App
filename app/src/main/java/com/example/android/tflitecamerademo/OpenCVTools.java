@@ -140,9 +140,10 @@ public class OpenCVTools {
             Mat morphology = new Mat();
             // 膨胀 连接边缘
             Imgproc.dilate(edges, morphology, new Mat(), new Point(-1, -1), 3, 1, new Scalar(1));
-
+            long startTime = SystemClock.uptimeMillis();
             Imgproc.HoughLinesP(morphology, lines,1, Math.PI / 360.0, 40, 30, 40);
-
+            long endTime = SystemClock.uptimeMillis();
+            Log.d("----- ", "contour_extraction: " + Long.toString(endTime - startTime));
             line_number = lines.rows();
 
             if (line_number < 20 && height_threshold > 20) {
@@ -154,7 +155,6 @@ public class OpenCVTools {
                 break;
             }
         }
-
         // 统计线条直线
         int number = 0;
         for (int i = 0; i < line_number; i++) {
@@ -164,7 +164,7 @@ public class OpenCVTools {
             double tmp_x = Math.pow((oneLine[0] - oneLine[2]), 2);
             double tmo_y = Math.pow((oneLine[1] - oneLine[3]), 2);
             int tmp_dis = (int) Math.sqrt(tmo_y + tmp_x);
-            if (tmp_dis > 35 && tmp_dis < 200 && number < 1000) {
+            if (tmp_dis > 35 && tmp_dis < 200 && number < 500) {
                 number = number + 1;
             }
 //            Imgproc.line(flag, new Point(oneLine[0],oneLine[1]),new Point(oneLine[2],oneLine[3]),new Scalar(0,0,255),2,8,0 );

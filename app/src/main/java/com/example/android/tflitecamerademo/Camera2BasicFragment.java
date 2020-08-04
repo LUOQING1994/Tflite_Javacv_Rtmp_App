@@ -45,6 +45,7 @@ import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v13.app.FragmentCompat;
 import android.support.v4.content.ContextCompat;
@@ -741,7 +742,7 @@ public class Camera2BasicFragment extends Fragment
   }
   // start ======================  OpenCV为主的算法需要的参数 =====================
   int timeF = 3; // 每隔timeF取一张图片
-  int timeF_switch_bg = 20;  // 当提取三张图片后 再替换对比底图
+  int timeF_switch_bg = 10;  // 当提取三张图片后 再替换对比底图
 
   Mat last_image = new Mat();  // 上一时刻的图片
   Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
@@ -758,8 +759,6 @@ public class Camera2BasicFragment extends Fragment
   Integer image_sim_through = 7; // 前后对比图片结果大于该值时 视为相似
   Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
   Integer last_car_state = 0;  // 记录车辆上一时刻状态
-  boolean is_angle_ok = false;   // 陀螺仪角度是否放置正确
-  Integer first_angle = 0;  // 第一次得到陀螺仪数据
 
   Integer car_state_number = 5;  // 记录运输状态的持续次数
 
@@ -829,7 +828,7 @@ public class Camera2BasicFragment extends Fragment
           } else {
             image_sim_number = Math.max(image_sim_number - 1, 0);
           }
-//        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
+        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
 
           //  缓存图片 用于上传服务器 只缓存50帧
           int tmp_much_catch_image_len = much_catch_image.size();
@@ -871,9 +870,9 @@ public class Camera2BasicFragment extends Fragment
               // 结合 陀螺仪 霍夫直线 进行车辆行为分析
               // 返回 车辆行为结果索引
               tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,tmp_speed, tmp_angle, props);
-              if (tmp_car_state != 0) { // 启用模型检测
+//              if (tmp_car_state != 0) { // 启用模型检测
                 model_result = classifier.classifyFrame(bitmap);
-              }
+//              }
               tmp_textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) +" \n"+
                       "轮廓数量: " + now_image_len + " \n " +
                       "相似度 : " + image_sim_number + " \n " +
