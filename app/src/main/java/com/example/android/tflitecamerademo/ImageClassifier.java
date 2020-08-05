@@ -61,8 +61,8 @@ public class ImageClassifier {
   static final int DIM_IMG_SIZE_Y = 224;
 
   // start ================================   新加的参数 ===========================
-  static final int Analysis_IMG_SIZE_Y = 1920;
-  static final int Analysis_IMG_SIZE_X = 1080;
+  static final int Analysis_IMG_SIZE_Y = 1280;
+  static final int Analysis_IMG_SIZE_X = 720;
 
   public int CAR_CATEGORY = 0; // 模型得到的货物的类别
   public double CAR_CATEGORY_PROBABILITY = 0.0; // 模型得到的货物的类别概率
@@ -130,7 +130,7 @@ public class ImageClassifier {
     long startTime = SystemClock.uptimeMillis();
     tflite.run(imgData, labelProbArray);
     long endTime = SystemClock.uptimeMillis();
-    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
+//    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
 
     // smooth the results
     applyFilter();
@@ -214,7 +214,7 @@ public class ImageClassifier {
       }
     }
     long endTime = SystemClock.uptimeMillis();
-    Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
+//    Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
   }
 
   /** Prints top-K labels, to be shown in UI as the results. */

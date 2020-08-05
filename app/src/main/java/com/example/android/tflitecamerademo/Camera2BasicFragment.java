@@ -785,14 +785,13 @@ public class Camera2BasicFragment extends Fragment
       showToast("Uninitialized Classifier or invalid context.");
       return;
     }
+    long startTime = SystemClock.uptimeMillis();
     // 获取摄像头数据
     Bitmap bitmap =
             textureView.getBitmap(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y);
     Bitmap bitmap_analysis =
             textureView.getBitmap(ImageClassifier.Analysis_IMG_SIZE_X, ImageClassifier.Analysis_IMG_SIZE_Y);
-
     int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
-
     // ======================================== 这里接入车载设备速度
     int tmp_speed = (int) angle_activity.currentSpeed;
     // 判断陀螺仪是否有正确安装
@@ -811,7 +810,6 @@ public class Camera2BasicFragment extends Fragment
           timeF = Integer.parseInt(props.getProperty("timeF"));
           Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
           tmp_cut_image = openCVTools.deal_flag(tmp_now_image);   // 对图片进行预处理
-
           // 初始化基础参数
           if (last_image.cols() == 0) {
             // 默认为当前货物类别
@@ -828,7 +826,7 @@ public class Camera2BasicFragment extends Fragment
           } else {
             image_sim_number = Math.max(image_sim_number - 1, 0);
           }
-        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
+//        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
 
           //  缓存图片 用于上传服务器 只缓存50帧
           int tmp_much_catch_image_len = much_catch_image.size();
@@ -963,9 +961,11 @@ public class Camera2BasicFragment extends Fragment
       }
 
     } else {
-      textToShow = "请点击按钮开始检测！";
+      textToShow = "请点击按钮！";
       showToast(textToShow);
     }
+    long endTime = SystemClock.uptimeMillis();
+//    Log.d(TAG, "总耗时为 =============: " + Long.toString(endTime - startTime));
   }
 
   /** Compares two {@code Size}s based on their areas. */
