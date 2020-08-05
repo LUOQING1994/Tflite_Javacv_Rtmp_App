@@ -49,10 +49,9 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.24), (int) (height * 0.31), (int) (0.49 * width), (int) (0.55 * height));
+        Rect rect = new Rect((int) (width * 0.24), (int) (height * 0.315), (int) (0.485 * width), (int) (0.55 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
-
         // 均值偏移 抹去细小纹理
         Imgproc.medianBlur(cut_flag, blur_flag, 9);
         // 统一进行颜色转换
@@ -133,23 +132,20 @@ public class OpenCVTools {
         Mat lines = new Mat();
         boolean isFirst = false; // 轮廓提取时 是否第一次满足线条数大于100
         // 设定line_number的值较小 防止动态参数调整过大
-        while (line_number < 20 || isFirst ) {   // 动态的调整参数 使其能够适应于夜晚
-            Mat edges = new Mat();
+        Mat edges = new Mat();
+        Mat morphology = new Mat();
+        while (line_number < 10 || isFirst ) {   // 动态的调整参数 使其能够适应于夜晚
             Imgproc.Canny(flag,edges,10, height_threshold,3,true);
 
-            Mat morphology = new Mat();
             // 膨胀 连接边缘
             Imgproc.dilate(edges, morphology, new Mat(), new Point(-1, -1), 3, 1, new Scalar(1));
-            long startTime = SystemClock.uptimeMillis();
-            Imgproc.HoughLinesP(morphology, lines,1, Math.PI / 360.0, 40, 30, 40);
-            long endTime = SystemClock.uptimeMillis();
-            Log.d("----- ", "contour_extraction: " + Long.toString(endTime - startTime));
+            Imgproc.HoughLinesP(morphology, lines,1, Math.PI / 180.0, 40, 30, 40);
             line_number = lines.rows();
 
-            if (line_number < 20 && height_threshold > 20) {
+            if (line_number < 10 && height_threshold > 20) {
                 height_threshold = height_threshold - 20;
-            } else if (line_number > 20 && height_threshold >= 40 && !isFirst) {
-                height_threshold =  height_threshold - 15;
+            } else if (line_number > 10 && height_threshold >= 40 && !isFirst) {
+                height_threshold =  height_threshold - 10;
                 isFirst = true;
             } else {
                 break;
@@ -164,8 +160,11 @@ public class OpenCVTools {
             double tmp_x = Math.pow((oneLine[0] - oneLine[2]), 2);
             double tmo_y = Math.pow((oneLine[1] - oneLine[3]), 2);
             int tmp_dis = (int) Math.sqrt(tmo_y + tmp_x);
-            if (tmp_dis > 35 && tmp_dis < 200 && number < 500) {
+            if (tmp_dis > 35 && tmp_dis < 200) {
                 number = number + 1;
+            }
+            if (number >= 500) {
+                break;
             }
 //            Imgproc.line(flag, new Point(oneLine[0],oneLine[1]),new Point(oneLine[2],oneLine[3]),new Scalar(0,0,255),2,8,0 );
         }
