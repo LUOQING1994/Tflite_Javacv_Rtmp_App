@@ -49,11 +49,14 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.24), (int) (height * 0.315), (int) (0.485 * width), (int) (0.55 * height));
+        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.33), (int) (0.46 * width), (int) (0.5 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
-//        // 均值偏移 抹去细小纹理
-        Imgproc.medianBlur(cut_flag, blur_flag, 5);
+        // 均值偏移 抹去细小纹理
+//        Imgproc.blur(cut_flag, blur_flag, new Size(5,5), new Point(-1,-1),Core.BORDER_DEFAULT);
+//        Imgproc.medianBlur(cut_flag, blur_flag, 5);
+        // 高斯滤波，降噪  只对凸包检测进行处理
+//        Imgproc.GaussianBlur(cut_flag, cut_flag, new Size(3,3), 2, 2);
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
         Imgproc.cvtColor(cut_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
@@ -287,7 +290,7 @@ public class OpenCVTools {
         long endTime = SystemClock.uptimeMillis();
 //        Log.d("  ", "总耗时为 =============: " + Long.toString(endTime - startTime));
 
-        Log.i("总数 " , contours.size() + " " + number + "");
+//        Log.i("总数 " , contours.size() + " " + number + "");
          return number;
     }
 }
