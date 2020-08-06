@@ -52,11 +52,11 @@ public class OpenCVTools {
         Rect rect = new Rect((int) (width * 0.24), (int) (height * 0.315), (int) (0.485 * width), (int) (0.55 * height));
         Mat cut_flag = new Mat(flag, rect);
         Mat blur_flag = new Mat();
-        // 均值偏移 抹去细小纹理
-        Imgproc.medianBlur(cut_flag, blur_flag, 9);
+//        // 均值偏移 抹去细小纹理
+        Imgproc.medianBlur(cut_flag, blur_flag, 5);
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
-        Imgproc.cvtColor(blur_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.cvtColor(cut_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
         return gary_now_flag;
     }
     /**
@@ -241,5 +241,53 @@ public class OpenCVTools {
 
         return contourHull_number;
 
+    }
+
+    /**
+     *  师兄的凸包检测代码实现
+     */
+    public Integer other_contours_Hull(Mat image){
+        long startTime = SystemClock.uptimeMillis();
+        double del_area = image.rows() * image.cols() * 0.15;
+        // 轮廓发现
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hierarchy = new Mat();
+        Imgproc.findContours(image, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
+        // 凸包提取
+        MatOfInt hull = new MatOfInt();
+        MatOfPoint2f approx = new MatOfPoint2f();
+        approx.convertTo(approx, CvType.CV_32F);
+        int number = 0;
+        for (MatOfPoint contour: contours) {
+            // 边框的凸包
+            Imgproc.convexHull(contour, hull);
+            // 用凸包计算出新的轮廓点
+            Point[] contourPoints = contour.toArray();
+            int[] indices = hull.toArray();
+            List<Point> newPoints = new ArrayList<>();
+            for (int index : indices) {
+                newPoints.add(contourPoints[index]);
+            }
+            MatOfPoint2f contourHull = new MatOfPoint2f();
+            contourHull.fromList(newPoints);
+            // 多边形拟合凸包边框(此时的拟合的精度较低)
+            Imgproc.approxPolyDP(contourHull, approx, Imgproc.arcLength(contourHull, true)*0.02, true);
+            // 筛选出面积大于某一阈值的凸多边形
+            MatOfPoint approxf1 = new MatOfPoint();
+            approx.convertTo(approxf1, CvType.CV_32S);
+            double tmp_area = Math.abs(Imgproc.contourArea(approx));
+            if ( approx.rows() > 4 && del_area > tmp_area && tmp_area > 300 &&
+                    Imgproc.isContourConvex(approxf1)) {
+                number = number + 1;
+            }
+            if (number > 200){
+                break;
+            }
+        }
+        long endTime = SystemClock.uptimeMillis();
+//        Log.d("  ", "总耗时为 =============: " + Long.toString(endTime - startTime));
+
+        Log.i("总数 " , contours.size() + " " + number + "");
+         return number;
     }
 }

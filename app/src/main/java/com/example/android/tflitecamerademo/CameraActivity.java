@@ -68,7 +68,7 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
       // 主要用来初始化陀螺仪角度
       // 当按钮被点击时 更改配置文件中的陀螺仪相关参数
     if (Integer.parseInt(this.props.getProperty("initi_angle")) == 1){
-      btn.setText("开始检测");
+      btn.setText("进行检测");
       this.props.setProperty("initi_angle", String.valueOf(0));
     } else {
       btn.setText("停止检测");
