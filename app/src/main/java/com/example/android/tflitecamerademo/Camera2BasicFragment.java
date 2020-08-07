@@ -487,7 +487,7 @@ public class Camera2BasicFragment extends Fragment
         // 若为横屏 则设置数值大的为宽、数值小的为高
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
 //          textureView.setAspectRatio(previewSize.getWidth(), previewSize.getHeight());
-//          Log.d(TAG, "当前屏幕的宽高比：   " + (DeviceInfo.screenHeight(getContext()) + 900)  + " :: "+  DeviceInfo.screenHeight(getContext()));
+//          Log.d(TAG, "当前屏幕的宽高比：   " + (DeviceInfo.screenHeight(getContext()) + 850)  + " :: "+  DeviceInfo.screenHeight(getContext()));
 //          textureView.setAspectRatio(DeviceInfo.screenWidth(getContext()), DeviceInfo.screenHeight(getContext()));
           textureView.setAspectRatio(DeviceInfo.screenHeight(getContext()) + 850 , DeviceInfo.screenHeight(getContext()));
           // 若为竖屏 则设置数值小的为宽、数值大的为高
@@ -605,7 +605,9 @@ public class Camera2BasicFragment extends Fragment
     synchronized (lock) {
       runClassifier = true;
     }
-
+    // 模型检测和OpenCV算法分别放在两个线程中跑 线程放在同一个backgroundHandler队列中
+    // backgroundHandler用来管理post中的所有线程 在view结束时 异常这些runnable 但其只能移除未执行的线程
+    backgroundHandler.post(periodicCarBehavior);
     backgroundHandler.post(periodicClassify);
   }
 
@@ -623,7 +625,20 @@ public class Camera2BasicFragment extends Fragment
       e.printStackTrace();
     }
   }
+  /** 用于执行OpenCV算法*/
+  private Runnable periodicCarBehavior =
+          new Runnable() {
+            @Override
+            public void run() {
+              synchronized (lock) {
+                if (runClassifier) {
+                  CarBehaviorOpenCv();
+                }
 
+              }
+              backgroundHandler.post(periodicCarBehavior);
+            }
+          };
   /** Takes photos and classify them periodically. */
   private Runnable periodicClassify =
           new Runnable() {
@@ -757,8 +772,6 @@ public class Camera2BasicFragment extends Fragment
   Mat tmp_cut_image = new Mat();
   Integer tmp_car_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
 
-  Integer now_image_len = 0;  // 当前检测区域的直线数量
-
   Integer image_sim = 0;  // 计算前后两帧的相似度
   Integer image_sim_through = 7; // 前后对比图片结果大于该值时 视为相似
   Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
@@ -780,44 +793,36 @@ public class Camera2BasicFragment extends Fragment
   String tmp_textToShow = ""; // 记录各种决策算法的识别结果
   int last_angle = 0; // 记录上一次角度
   // end ======================  模型为主的算法需要的参数 =====================
-  /** Classifies a frame from the preview stream. */
-  private void classifyFrame( ) {
-    String model_result = ""; // 记录模型货物分类结果
-    String textToShow = "";
+  private void CarBehaviorOpenCv(){
     final Activity activity = getActivity();
     if (classifier == null || activity == null || cameraDevice == null || tmp_fps_mean == null) {
       showToast("Uninitialized Classifier or invalid context.");
       return;
     }
     long startTime = SystemClock.uptimeMillis();
-    int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
-    // ======================================== 这里接入车载设备速度
+    // 这里接入车载设备速度
     int tmp_speed = (int) angle_activity.currentSpeed;
-    // 判断陀螺仪是否有正确安装
     int current_angle = (int) angle_activity.currentAngle;
-    if (init_angle == 0) { // 保存设备角度
-      //  计算当前需要跳过的帧率
-      timeF = 600 / (1000 / tmp_fps_mean) -1;
-      props.setProperty("tmp_first_angle", String.valueOf(current_angle));
-      last_angle = 0;   // 记录当前的角度
-    }
+    int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
+
     if (init_angle == 1) {
       int tmp_first_angle = Integer.parseInt(props.getProperty("tmp_first_angle"));
       int tmp_angle = Math.abs(current_angle - tmp_first_angle);
-      if ( Math.abs(last_angle - tmp_angle) < 25 ){ // 防止角度突变
+      if ( Math.abs(last_angle - tmp_angle) < 25 ) { // 防止角度突变
+        last_angle = tmp_angle;   // 记录当前的角度
         try {
           if (timeF <= 0) {
+            timeF =  600 / (1000 / tmp_fps_mean) -1;
+            tmp_textToShow = "";
+
             // 获取每一帧的数据 摄像头数据
             Bitmap bitmap_analysis =
                     textureView.getBitmap(ImageClassifier.Analysis_IMG_SIZE_X, ImageClassifier.Analysis_IMG_SIZE_Y);
-            last_angle = tmp_angle;   // 记录当前的角度
-            tmp_textToShow = "";
-            timeF =  600 / (1000 / tmp_fps_mean) -1;
             Utils.bitmapToMat(bitmap_analysis, tmp_now_image);
             bitmap_analysis.recycle();
-            //  缓存图片 用于上传服务器 只缓存50帧
+            //  缓存图片 用于上传服务器 只缓存10帧
             int tmp_much_catch_image_len = much_catch_image.size();
-            if (tmp_much_catch_image_len > 20) {
+            if (tmp_much_catch_image_len > 10) {
               much_catch_image.remove(0);
               much_catch_image.add(tmp_now_image);
             } else {
@@ -849,8 +854,6 @@ public class Camera2BasicFragment extends Fragment
             Mat K = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new org.opencv.core.Size(5,5),new org.opencv.core.Point(-1,-1));
             Mat blur_flag = new Mat();
             Imgproc.morphologyEx(gary_now_flag, blur_flag, Imgproc.MORPH_OPEN, K);
-
-//        Log.d("================", "currentAngle========>" + tmp_angle + " : " + image_sim_number);
 
             // 启用四种决策算法中的一种
             int enable_decision = Integer.parseInt(props.getProperty("enable_decision"));
@@ -884,15 +887,7 @@ public class Camera2BasicFragment extends Fragment
 //              tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysis(image_sim_number,now_image_len,tmp_speed, tmp_angle, props);
 //              break;
               case 3:// 以凸包为核心， 模型为辅助
-                if (activity != null) {
-                    activity.runOnUiThread(
-                            new Runnable() {
-                              @Override
-                              public void run() {
-                                now_image_hull = openCVTools.other_contours_Hull(blur_flag); // 获取图片凸包数量
-                              }
-                            });
-                }
+                now_image_hull = openCVTools.other_contours_Hull(blur_flag); // 获取图片凸包数量
                 // 结合 陀螺仪 凸包检测 进行车辆行为分析
                 tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,tmp_speed, tmp_angle, props);
                 break;
@@ -964,40 +959,59 @@ public class Camera2BasicFragment extends Fragment
 //                "当前角度：" + tmp_angle + " \n " +
 //                "当前速度：" + tmp_speed + " \n ";
           // 模型检测
-          Bitmap bitmap =
-                  textureView.getBitmap(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y);
-          model_result = classifier.classifyFrame(bitmap);
-          bitmap.recycle();
-          Integer model_result_index = classifier.CAR_CATEGORY;
-          double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
-          if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
-                  && model_result_prob > 0.8 && tmp_speed == 0 && image_sim_number != image_sim_through) {
-            // 说明模型已经识别到了货物 此时 强制设置货车状态为装载
-            tmp_car_state = -1;
-          }
-          last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
-          textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
-                  "凸包数量: " + now_image_hull + " \n " +
-                  "相似度 : " + image_sim_number + " \n " +
-                  "当前角度：" + tmp_angle + " \n " +
-                  "当前速度：" + tmp_speed + " \n " + model_result;
-          showToast(textToShow);
-
         } catch ( Exception e){
           Log.i("发生异常啦！！！ " , e.toString());
         }
+      }
+    } else {
+      //  计算当前需要跳过的帧率
+      timeF = 600 / (1000 / tmp_fps_mean) -1;
+      props.setProperty("tmp_first_angle", String.valueOf(current_angle));
+      last_angle = 0;   // 记录当前的角度
+    }
 
+    long endTime = SystemClock.uptimeMillis();
+  }
+  /** Classifies a frame from the preview stream. */
+  private void classifyFrame( ) {
+    String model_result = ""; // 记录模型货物分类结果
+    String textToShow = "";
+    int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
+
+    if (init_angle == 1) {
+      // 获取当前角度
+      int tmp_first_angle = Integer.parseInt(props.getProperty("tmp_first_angle"));
+      int current_angle = (int) angle_activity.currentAngle;
+      int tmp_angle = Math.abs(current_angle - tmp_first_angle);
+      if ( Math.abs(last_angle - tmp_angle) < 25 ) { // 防止角度突变
+        Bitmap bitmap =
+                textureView.getBitmap(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y);
+        model_result = classifier.classifyFrame(bitmap);
+        bitmap.recycle();
+        Integer model_result_index = classifier.CAR_CATEGORY;
+        double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
+        // 防止夜间凸包检测识别不到物体的缺点
+        // ======================================== 这里接入车载设备速度
+        int tmp_speed = (int) angle_activity.currentSpeed;
+        if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
+                && model_result_prob > 0.8 && tmp_speed == 0 && image_sim_number != image_sim_through) {
+          // 说明模型已经识别到了货物 此时 强制设置货车状态为装载
+          tmp_car_state = -1;
+        }
+        last_car_state = tmp_car_state;  // 记录当前时刻车辆状态
+
+        textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+                "凸包数量: " + now_image_hull + " \n " +
+                "相似度 : " + image_sim_number + " \n " +
+                "当前角度：" + tmp_angle + " \n " +
+                "当前速度：" + tmp_speed + " \n " + model_result;
       } else {
         textToShow = "陀螺仪异常！";
-        showToast(textToShow);
       }
-
     } else {
       textToShow = "请点击按钮！";
-      showToast(textToShow);
     }
-    long endTime = SystemClock.uptimeMillis();
-//    Log.d(TAG, "总耗时为 =============: " + Long.toString(endTime - startTime));
+    showToast(textToShow);
   }
 
   /** Compares two {@code Size}s based on their areas. */

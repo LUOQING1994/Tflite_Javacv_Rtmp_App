@@ -49,9 +49,9 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.33), (int) (0.46 * width), (int) (0.5 * height));
+        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.35), (int) (0.46 * width), (int) (0.5 * height));
         Mat cut_flag = new Mat(flag, rect);
-        Mat blur_flag = new Mat();
+//        Mat blur_flag = new Mat();
         // 均值偏移 抹去细小纹理
 //        Imgproc.blur(cut_flag, blur_flag, new Size(5,5), new Point(-1,-1),Core.BORDER_DEFAULT);
 //        Imgproc.medianBlur(cut_flag, blur_flag, 5);
