@@ -15,21 +15,50 @@ limitations under the License.
 
 package com.example.android.tflitecamerademo;
 
-import android.app.Activity;
-import android.graphics.Bitmap;
+import android.annotation.SuppressLint;
+import android.content.Context;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 
 import org.opencv.android.OpenCVLoader;
-import org.opencv.android.Utils;
 
 /** Main {@code Activity} class for the Camera app. */
 public class CameraActivity extends BaseActivity implements View.OnClickListener{
   String TAG = "CameraActivity";
+  private PowerManager.WakeLock mWakeLock = null;   //  休眠锁
   Button btn;
+
+
+  @SuppressLint("InvalidWakeLockTag")
+  private void acquireWakeLock()
+  {
+    if(mWakeLock == null)
+    {
+      PowerManager mPM = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
+      mWakeLock = mPM.newWakeLock(PowerManager.FULL_WAKE_LOCK|
+              PowerManager.ON_AFTER_RELEASE,"PlayService");
+      if(mWakeLock!=null)
+      {
+        mWakeLock.acquire();
+      }
+    }
+  }
+
+  /**
+   * 释放锁
+   */
+  private void releaseWakeLock()
+  {
+    if(mWakeLock!=null)
+    {
+      mWakeLock.release();
+      mWakeLock = null;
+    }
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -48,6 +77,7 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
     } else {
       Log.i("==", "load library faile");
     }
+    acquireWakeLock();
     // 判断用户是否第一次打开程序
     // 第一次进入 则把之前的fragment替换成 Camera2BasicFragment
     // 否则 不需要进行页面的初始化

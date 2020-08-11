@@ -62,13 +62,13 @@ public class CarBehaviorAnalysisByOpenCv {
         int image_sim_number_through = Integer.parseInt(props.getProperty("image_sim_number"));
 
         int tmp_car_state;
-        if ((now_image_hull > hull_number_through) && (now_angle > hull_angle_through)){ // 凸包数大于10 且角度大于20 则有可能出现倾倒行为
+        if ((now_angle > hull_angle_through)){ // 角度大于15 则有可能出现倾倒行为 去除了凸包的条件
             if ((speed < hull_speed_thought) && (image_sim_number != image_sim_number_through)) { // 速度小于6 且相似度没有连续过高
                 tmp_car_state = 1;    // 视为倾倒
             } else {
                 tmp_car_state = 0;    // 视为运输
             }
-        } else if ((now_angle < hull_angle_through) && (speed < hull_speed_thought)){ // 角度小于20 且速度小于6 则有可能出现装载
+        } else if ((now_angle < hull_angle_through - 8) && (speed == 0)){ // 角度小于10 且速度必须等于0 则有可能出现装载
             if ((now_image_hull > hull_number_through) && (image_sim_number != image_sim_number_through)){ // 当前线条要大于10 且相似度没有连续过高
                 tmp_car_state = -1;   // 视为装载
             } else {

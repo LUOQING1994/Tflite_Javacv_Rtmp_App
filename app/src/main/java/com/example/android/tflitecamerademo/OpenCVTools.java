@@ -49,7 +49,7 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.35), (int) (0.46 * width), (int) (0.5 * height));
+        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.4), (int) (0.45 * width), (int) (0.45 * height));
         Mat cut_flag = new Mat(flag, rect);
 //        Mat blur_flag = new Mat();
         // 均值偏移 抹去细小纹理
@@ -118,7 +118,7 @@ public class OpenCVTools {
                 Rect tmp_rect_2 = new Rect(i * weight_inter, j * height_inter, weight_inter, height_inter);
                 Mat cut_flag2 = new Mat(image2, tmp_rect_2);
                 double tmp_sim_degree = calculate(cut_flag1, cut_flag2);
-                if (tmp_sim_degree > 0.8) {
+                if (tmp_sim_degree > 0.7) { // 相识度阈值设置低一点 是因为车辆在运行过程中 画面会抖动
                     result = result + 1;
                 }
             }
