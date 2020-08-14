@@ -792,8 +792,8 @@ public class Camera2BasicFragment extends Fragment
     long startTime = SystemClock.uptimeMillis();
     int init_angle = Integer.parseInt(props.getProperty("initi_angle"));
     // ======================================== 这里接入车载设备速度
-//    int tmp_speed = (int) angle_activity.currentSpeed;
-    int tmp_speed = 0;
+    int tmp_speed = (int) angle_activity.currentSpeed;
+//    int tmp_speed = 0;
     // 判断陀螺仪是否有正确安装
     int current_angle = (int) angle_activity.currentAngle;
     if (init_angle == 0) { // 保存设备角度
@@ -894,7 +894,7 @@ public class Camera2BasicFragment extends Fragment
             } else if (last_car_state == 1 && tmp_car_state == -1){ // 上一时刻为倾倒 当前时刻为装载 强制设置成运输
               tmp_car_state = 0;
             }
-            // 当出现运输时 若能持续保持10次以上 才视为运输 否则 沿用前一时刻状态
+            // 防止结果跳变
             if (last_car_state != tmp_car_state){
               car_state_number = Math.max(0,car_state_number -1 );
               if (car_state_number > 0){
