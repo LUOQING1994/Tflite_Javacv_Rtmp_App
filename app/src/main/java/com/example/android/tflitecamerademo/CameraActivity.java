@@ -84,10 +84,15 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
     // 补充：.add() 添加一个fragment .remove()移除一个fragment .replace()替换一个fragment
     // fragment可以理解成组件 多个组件组成一个Activity
     if (null == savedInstanceState) {
+//      getFragmentManager()
+//          .beginTransaction()
+//          // newInstance()：实例化一个fragment
+//          .replace(R.id.container, Camera2BasicFragment.newInstance())
+//          .commit();
       getFragmentManager()
           .beginTransaction()
           // newInstance()：实例化一个fragment
-          .replace(R.id.container, Camera2BasicFragment.newInstance())
+          .replace(R.id.container, PushFragment.newInstance())
           .commit();
 
     }

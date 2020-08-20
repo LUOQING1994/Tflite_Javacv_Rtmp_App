@@ -11,7 +11,7 @@ android {
     buildToolsVersion '27.0.3'
     defaultConfig {
         applicationId "android.example.com.tflitecamerademo"
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
@@ -23,6 +23,30 @@ android {
     }
     lintOptions {
         abortOnError false
+    }
+    splits {
+
+        // Configures screen ABI split settings
+        abi {
+
+            // Enable ABI APK splits
+            enable true
+
+            // By default all ABIs are included, so use reset() and include to specify that we only
+            // want APKs for x86, armeabi-v7a, and mips
+
+            // Resets the list of ABIs that Gradle should create APKs for to none
+            reset()
+
+            // Specifies a list of ABIs that Gradle should create APKs for
+            //include "armeabi"
+
+            include 'armeabi-v7a', 'x86' //select ABIs to build APKs for//, 'x86_64', 'arm64-v8a'
+
+            // Specify that we do not want to also generate a universal APK that includes all ABIs
+            //universalApk false
+            universalApk true
+        }
     }
     buildTypes {
         release {
@@ -60,6 +84,7 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation fileTree(dir: "$buildDir/native-libs", include: 'native-libs.jar')
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.android.support:support-v4:26.1.0'
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
@@ -72,6 +97,7 @@ dependencies {
     implementation project(path: ':openCVLibrary341')
 
     implementation files("libs/BaiduLBS_Android.jar")
+    implementation files("libs/smartavengine.jar")
 }
 task nativeLibsToJar(type: Jar, description: 'create a jar archive of the native libs') {
     destinationDir file("$buildDir/native-libs")
