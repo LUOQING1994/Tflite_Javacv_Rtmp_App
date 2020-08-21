@@ -2,14 +2,16 @@ package com.example.android.tflitecamerademo;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.Presentation;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.app.Fragment;
-import android.os.Message;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,7 +22,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.daniulive.smartpublisher.SmartPublisherJniV2;
@@ -29,9 +30,17 @@ import com.eventhandle.NTSmartEventID;
 import com.voiceengine.NTAudioRecordV2;
 import com.voiceengine.NTAudioRecordV2Callback;
 
+import org.opencv.android.Utils;
+import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -44,11 +53,13 @@ public class PushFragment extends Fragment {
 
     private View root;
     private Context ctx;
-    private Activity activity;
+    private CameraActivity activity;
     private SurfaceView surfaceView;
     private SurfaceHolder surfaceHolder;
     private Button btnPush;
-
+    private TextView textView;
+    private ImageView imageView;
+    private MainCarBehaviorAnalysis mainCarBehaviorAnalysis;
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String ARG_PARAM1 = "param1";
@@ -128,8 +139,8 @@ public class PushFragment extends Fragment {
     private int currentOrigentation = LANDSCAPE;
     private int curCameraIndex = -1;
 
-    private int videoWidth = 640;
-    private int videoHeight = 360;
+    private int videoWidth = 1280;
+    private int videoHeight = 720;
 
     private int frameCount = 0;
 
@@ -148,8 +159,7 @@ public class PushFragment extends Fragment {
 
     private String encrypt_key = "";
     private String encrypt_iv = "";
-
-
+    private ImageClassifier classifier;  // 模型检测
     static {
         System.loadLibrary("SmartPublisher");
     }
@@ -171,6 +181,13 @@ public class PushFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mainCarBehaviorAnalysis = new MainCarBehaviorAnalysis();
+        activity = (CameraActivity) getActivity();
+        try {
+            classifier = new ImageClassifier(activity);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         if (getArguments() != null) {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
@@ -183,9 +200,11 @@ public class PushFragment extends Fragment {
         // Inflate the layout for this fragment
         root = inflater.inflate(R.layout.fragment_push, container, false);
         ctx = getContext();
-        activity = getActivity();
         surfaceView = root.findViewById(R.id.surfaceView);
         btnPush = root.findViewById(R.id.btnPush);
+        textView = root.findViewById(R.id.text);
+        imageView = root.findViewById(R.id.imageView);
+
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(surfaceCallback);
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -216,7 +235,6 @@ public class PushFragment extends Fragment {
             }
         });
     }
-
     private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
         @Override
         public void surfaceCreated(SurfaceHolder surfaceHolder) {
@@ -376,7 +394,11 @@ public class PushFragment extends Fragment {
         mCamera.autoFocus(myAutoFocusCallback);
         mPreviewRunning = true;
     }
-
+    Bitmap frame_data;
+    /**
+     *  开启推流服务
+     *  1，terminal中输入：adb shell   ->   srs -c /data/srs/srs.conf   ->   netstat -nltp
+     */
     private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
         @Override
         public void onPreviewFrame(byte[] data, Camera camera) {
@@ -386,22 +408,72 @@ public class PushFragment extends Fragment {
                 System.gc();
                 Log.i("OnPre", "gc-");
             }
-
             if (data == null) {
                 Camera.Parameters params = camera.getParameters();
                 Camera.Size size = params.getPreviewSize();
                 int bufferSize = (((size.width | 0x1f) + 1) * size.height * ImageFormat.getBitsPerPixel(params.getPreviewFormat())) / 8;
                 camera.addCallbackBuffer(new byte[bufferSize]);
             } else {
-//            Log.e("============", "99999");
                 if (isRTSPPublisherRunning || isPushingRtmp || isRecording || isPushingRtsp) {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
+                    // 读取数据 进行图像处理
+                    frame_data = BytesToBimap(data);
+
+                    MatNumberUtils matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
+                    frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+                            Bitmap.Config.ARGB_8888);
+                    Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
+
+                    // 显示处理过后的图像结果
+                    activity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            imageView.setImageBitmap(frame_data);
+                            textView.setText(matNumberUtils.getToShow());
+                        }
+                    });
+
                 }
 
                 camera.addCallbackBuffer(data);
             }
         }
     };
+
+
+
+
+    /**
+     * byte[]转bitmap
+     * @return
+     */
+    public Bitmap BytesToBimap(byte[] data) {
+        YuvImage yuvimage=new YuvImage(data, ImageFormat.NV21, videoWidth,videoHeight, null); //20、20分别是图的宽度与高度
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        yuvimage.compressToJpeg(new Rect(0, 0,videoWidth, videoHeight), 80, baos);//80--JPG图片的质量[0-100],100最高
+        byte[] jdata = baos.toByteArray();
+        return BitmapFactory.decodeByteArray(jdata, 0, jdata.length);
+    }
+
+    /**
+     * Shows a {@link } on the UI thread for the classification results.
+     *
+     * @param text The message to show
+     */
+    private void showToast(final String text) {
+        final Activity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            textView.setText(text);
+                        }
+                    });
+        }
+    }
+
+
 
     private void SetCameraFPS(Camera.Parameters parameters) {
         if (parameters == null)
@@ -963,9 +1035,8 @@ public class PushFragment extends Fragment {
         @Override
         public void onNTAudioRecordV2Frame(ByteBuffer data, int size, int sampleRate, int channel, int per_channel_sample_number) {
 
-    		 /*Log.i(TAG, "onNTAudioRecordV2Frame size=" + size + " sampleRate=" + sampleRate + " channel=" + channel
-    				 + " per_channel_sample_number=" + per_channel_sample_number);
-    		 */
+//    		 Log.i(TAG, "onNTAudioRecordV2Frame size=" + size + " sampleRate=" + sampleRate + " channel=" + channel
+//    				 + " per_channel_sample_number=" + per_channel_sample_number);
 
 
             if (publisherHandle != 0) {

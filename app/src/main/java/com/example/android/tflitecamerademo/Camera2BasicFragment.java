@@ -97,7 +97,7 @@ public class Camera2BasicFragment extends Fragment
   private TextView textView;
   private ImageClassifier classifier;
   private CarBehaviorAnalysisByOpenCv carBehaviorAnalysisByOpenCv;
-  private CarBehaviorAnalysisByModel behaviorAnalysisByModel;
+//  private CarBehaviorAnalysisByModel behaviorAnalysisByModel;
   private OpenCVTools openCVTools;
   private CameraActivity angle_activity; // 获取该对象中的角度
   Properties props = new Properties(); // 存储配置文件数据
@@ -336,7 +336,7 @@ public class Camera2BasicFragment extends Fragment
     try {
       classifier = new ImageClassifier(getActivity());
       carBehaviorAnalysisByOpenCv = new CarBehaviorAnalysisByOpenCv();
-      behaviorAnalysisByModel = new CarBehaviorAnalysisByModel();
+//      behaviorAnalysisByModel = new CarBehaviorAnalysisByModel();
       openCVTools = new OpenCVTools();
     } catch (IOException e) {
       Log.e(TAG, e.toString());
@@ -856,7 +856,7 @@ public class Camera2BasicFragment extends Fragment
             int enable_decision = Integer.parseInt(props.getProperty("enable_decision"));
             switch (enable_decision) {
               case 3:// 以凸包为核心， 模型为辅助
-                now_image_hull = openCVTools.other_contours_Hull(blur_flag); // 获取图片凸包数量
+//                now_image_hull = openCVTools.other_contours_Hull(blur_flag); // 获取图片凸包数量
                 break;
             }
 

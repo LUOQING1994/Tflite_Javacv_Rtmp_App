@@ -81,6 +81,23 @@ repositories {
 }
 
 dependencies {
+    // start ====================================== 引入javaCv
+    def javacvVersion = '1.4.2'
+    def ffmpegVersion = '4.0.1'
+    def opencvVersion = '3.4.2'
+    implementation(group: 'org.bytedeco', name: 'javacv-platform', version: javacvVersion) {
+        exclude group: 'org.bytedeco.javacpp-presets'
+    }
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: "${ffmpegVersion}-${javacvVersion}"
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: "${ffmpegVersion}-${javacvVersion}", classifier: 'android-arm' // for 'armeabi-v7a'
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: "${ffmpegVersion}-${javacvVersion}", classifier: 'android-arm64' // for 'arm64-v8a'
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: "${ffmpegVersion}-${javacvVersion}", classifier: 'android-x86' // for 'arm64-v8a'
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${opencvVersion}-${javacvVersion}"
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${opencvVersion}-${javacvVersion}", classifier: 'android-arm' // for 'armeabi-v7a'
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${opencvVersion}-${javacvVersion}", classifier: 'android-arm64' // for 'arm64-v8a'
+    implementation group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${opencvVersion}-${javacvVersion}", classifier: 'android-x86' // for 'arm64-v8a'
+    // end ====================================== 引入javaCv
+
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation fileTree(dir: "$buildDir/native-libs", include: 'native-libs.jar')
     implementation fileTree(dir: 'libs', include: ['*.jar'])

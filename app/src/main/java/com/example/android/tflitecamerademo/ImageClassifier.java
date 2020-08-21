@@ -125,19 +125,24 @@ public class ImageClassifier {
       Log.e(TAG, "Image classifier has not been initialized; Skipped.");
       return "Uninitialized Classifier.";
     }
-    convertBitmapToByteBuffer(bitmap);
-    // Here's where the magic happens!!!
-    long startTime = SystemClock.uptimeMillis();
-    tflite.run(imgData, labelProbArray);
-    long endTime = SystemClock.uptimeMillis();
-//    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
-
-    // smooth the results
-    applyFilter();
-
     // print the results
     String textToShow = printTopKLabels();
-    textToShow =  textToShow +  "\n 耗时：" + Long.toString(endTime - startTime) + "ms" ;
+    try {
+      convertBitmapToByteBuffer(bitmap);
+      // Here's where the magic happens!!!
+      long startTime = SystemClock.uptimeMillis();
+      tflite.run(imgData, labelProbArray);
+      long endTime = SystemClock.uptimeMillis();
+
+//    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
+
+      // smooth the results
+      applyFilter();
+
+      textToShow =  textToShow +  "\n 耗时：" + Long.toString(endTime - startTime) + "ms" ;
+    } catch ( Exception e){
+      e.printStackTrace();
+    }
 
     return textToShow;
   }

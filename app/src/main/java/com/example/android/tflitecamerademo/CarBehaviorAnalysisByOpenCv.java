@@ -44,7 +44,7 @@ public class CarBehaviorAnalysisByOpenCv {
             tmp_car_state = 0;
         }
 
-         return tmp_car_state;
+        return tmp_car_state;
     }
 
     /**
@@ -54,7 +54,7 @@ public class CarBehaviorAnalysisByOpenCv {
      * @param now_angle    陀螺仪角度
      * @return    车辆行为
      */
-    Integer carBehaviorAnalysisByHull(Integer image_sim_number,Integer now_image_hull, Integer speed, Integer now_angle, Properties props) {
+    Integer carBehaviorAnalysisByHull(Integer image_sim_number, Integer now_image_hull, Integer speed, Integer now_angle, Properties props) {
 
         int hull_number_through = Integer.parseInt(props.getProperty("hull_number_through"));
         int hull_angle_through = Integer.parseInt(props.getProperty("hull_angle_through"));
@@ -62,7 +62,7 @@ public class CarBehaviorAnalysisByOpenCv {
         int image_sim_number_through = Integer.parseInt(props.getProperty("image_sim_number"));
 
         int tmp_car_state;
-        if ((now_angle > hull_angle_through)){ // 角度大于15 则有可能出现倾倒行为 去除了凸包的条件
+        if ((now_angle > hull_angle_through)){ // 角度大于15 则有可能出现倾倒行为 去除凸包 防止夜间倾倒
             if ((speed < hull_speed_thought) && (image_sim_number != image_sim_number_through)) { // 速度小于6 且相似度没有连续过高
                 tmp_car_state = 1;    // 视为倾倒
             } else {
@@ -89,7 +89,7 @@ public class CarBehaviorAnalysisByOpenCv {
      * @param now_angle    陀螺仪角度
      * @return    车辆行为
      */
-    Integer carBehaviorAnalysisByLineAndHull(Integer image_sim_number,Integer now_image_len,Integer now_image_hull, Integer speed, Integer now_angle, Properties props) {
+    Integer carBehaviorAnalysisByLineAndHull(Integer image_sim_number, Integer now_image_len, Integer now_image_hull, Integer speed, Integer now_angle, Properties props) {
 
         int line_number_through = Integer.parseInt(props.getProperty("line_number_through"));
         int hull_number_through = Integer.parseInt(props.getProperty("hull_number_through"));

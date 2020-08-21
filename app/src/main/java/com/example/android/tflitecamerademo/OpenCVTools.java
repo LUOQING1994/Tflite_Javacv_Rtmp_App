@@ -49,18 +49,31 @@ public class OpenCVTools {
         int width = flag.width();
         int height = flag.height();
         // 规定对比区域
-        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.4), (int) (0.45 * width), (int) (0.45 * height));
+        Rect rect = new Rect((int) (width * 0.3), (int) (height * 0.35), (int) (0.45 * width), (int) (0.5 * height));
         Mat cut_flag = new Mat(flag, rect);
-//        Mat blur_flag = new Mat();
-        // 均值偏移 抹去细小纹理
-//        Imgproc.blur(cut_flag, blur_flag, new Size(5,5), new Point(-1,-1),Core.BORDER_DEFAULT);
-//        Imgproc.medianBlur(cut_flag, blur_flag, 5);
-        // 高斯滤波，降噪  只对凸包检测进行处理
-//        Imgproc.GaussianBlur(cut_flag, cut_flag, new Size(3,3), 2, 2);
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
         Imgproc.cvtColor(cut_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
         return gary_now_flag;
+    }
+    public Mat other_deal_flag(Mat flag){
+        int width = flag.width();
+        int height = flag.height();
+        // 规定对比区域
+        Rect rect = new Rect((int) (width * 0.245), (int) (height * 0.315), (int) (0.485 * width), (int) (0.6 * height));
+        Mat cut_flag = new Mat(flag, rect);
+        // 统一进行颜色转换
+        Mat gary_now_flag = new Mat();
+        Mat binary_now_flag = new Mat();
+        Imgproc.cvtColor(cut_flag, binary_now_flag, Imgproc.COLOR_BGR2GRAY);
+        // 加入二值化
+        Imgproc.adaptiveThreshold(binary_now_flag, gary_now_flag,255,Imgproc.ADAPTIVE_THRESH_MEAN_C,Imgproc.THRESH_BINARY,41,7);
+        // 开帽运算
+        Mat K = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5,5),new Point(-1,-1));
+        Mat blur_flag = new Mat();
+        Imgproc.morphologyEx(gary_now_flag, blur_flag, Imgproc.MORPH_OPEN, K);
+
+        return blur_flag;
     }
     /**
      *  相识度计算
@@ -75,7 +88,7 @@ public class OpenCVTools {
         float[] histdata1 = new float[256];
         hist1.get(0,0,histdata1);
         // 归一化
-        Core.normalize(hist1,hist1,0,255,Core.NORM_MINMAX);
+        Core.normalize(hist1,hist1,0,255, Core.NORM_MINMAX);
 
         List<Mat> images2 = new ArrayList<>();
         Mat hist2 = new Mat();
@@ -85,7 +98,7 @@ public class OpenCVTools {
         float[] histdata2 = new float[256];
         hist2.get(0,0,histdata2);
         // 归一化
-        Core.normalize(hist2,hist2,0,255,Core.NORM_MINMAX);
+        Core.normalize(hist2,hist2,0,255, Core.NORM_MINMAX);
 
         // 计算直方图的重合度
         double degree = 0;
@@ -104,7 +117,7 @@ public class OpenCVTools {
     /**
      *  待计算区域分割后 逐一计算相似度
      */
-    public int split_blok_box_sim( Mat image1, Mat image2){
+    public int split_blok_box_sim(Mat image1, Mat image2){
         int result = 0;
         int height = image1.height();
         int weight = image1.width();
@@ -129,7 +142,7 @@ public class OpenCVTools {
      *  轮廓提取算法
      *
      */
-    public Integer contour_extraction( Mat flag){
+    public Integer contour_extraction(Mat flag){
         int height_threshold = 200;  // 边缘检测的上边界
         int line_number = 0;  // 统计满足条件的凸包个数
         Mat lines = new Mat();
@@ -199,7 +212,7 @@ public class OpenCVTools {
             // 轮廓发现
             List<MatOfPoint> contours = new ArrayList<>();
             Mat hierarchy = new Mat();
-            Imgproc.findContours(morphology, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
+            Imgproc.findContours(morphology, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
 
             // 凸包提取
             MatOfInt hull = new MatOfInt();
@@ -249,13 +262,22 @@ public class OpenCVTools {
     /**
      *  师兄的凸包检测代码实现
      */
-    public Integer other_contours_Hull(Mat image){
-        long startTime = SystemClock.uptimeMillis();
-        double del_area = image.rows() * image.cols() * 0.15;
+    public MatNumberUtils other_contours_Hull(Mat image, Mat orgin_image){
+        MatNumberUtils matNumberUtils = new MatNumberUtils();
+        Mat gary_now_flag = new Mat();
+        // 加入二值化
+        Imgproc.adaptiveThreshold(image, gary_now_flag,255,Imgproc.ADAPTIVE_THRESH_MEAN_C,Imgproc.THRESH_BINARY,41,7);
+        // 开帽运算
+        Mat K = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5,5),new Point(-1,-1));
+        Mat blur_flag = new Mat();
+        Imgproc.morphologyEx(gary_now_flag, blur_flag, Imgproc.MORPH_OPEN, K);
+
+
+        double del_area = blur_flag.rows() * blur_flag.cols() * 0.15;
         // 轮廓发现
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(image, contours, hierarchy, Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
+        Imgproc.findContours(blur_flag, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE, new Point(0,0));
         // 凸包提取
         MatOfInt hull = new MatOfInt();
         MatOfPoint2f approx = new MatOfPoint2f();
@@ -282,15 +304,28 @@ public class OpenCVTools {
             if ( approx.rows() > 4 && del_area > tmp_area && tmp_area > 300 &&
                     Imgproc.isContourConvex(approxf1)) {
                 number = number + 1;
+                // 绘制凸包
+                double tmp_weight = orgin_image.width() * 0.3;
+                double tmp_height = orgin_image.height() * 0.4;
+
+                for (int j = 0; j < approx.rows(); j++) {
+                    Point tmp_point = approx.toArray()[j].clone();
+                    tmp_point.x = tmp_weight + tmp_point.x;
+                    tmp_point.y = tmp_height + tmp_point.y;
+
+                    Point tmp_point1 = approx.toArray()[(j + 1) % approx.rows()].clone();
+                    tmp_point1.x = tmp_weight + tmp_point1.x;
+                    tmp_point1.y = tmp_height + tmp_point1.y;
+
+                    Imgproc.line(orgin_image, tmp_point, tmp_point1, new Scalar(0,255,0), 2, 8, 0);
+                }
             }
             if (number > 200){
                 break;
             }
         }
-        long endTime = SystemClock.uptimeMillis();
-//        Log.d("  ", "总耗时为 =============: " + Long.toString(endTime - startTime));
-
-//        Log.i("总数 " , contours.size() + " " + number + "");
-         return number;
+        matNumberUtils.setIamge(orgin_image);
+        matNumberUtils.setNumber(number);
+        return matNumberUtils;
     }
 }
