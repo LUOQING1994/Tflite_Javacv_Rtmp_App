@@ -73,7 +73,7 @@ public class MainCarBehaviorAnalysis {
                     }
                 }
             }).start();
-            timeF = 8;
+            timeF = 5;
         } else {
             timeF = timeF - 1;
             matNumberUtils.setIamge(tmp_now_image);
@@ -129,7 +129,7 @@ public class MainCarBehaviorAnalysis {
                 tmp_dump_change_number = Math.min(tmp_dump_change_number + 1, 2);
             }
         }
-//        Log.i("时间", midTime + " :" + last_car_state + " : " + tmp_state_change_number);
+        Log.i("时间", midTime + " :" + last_car_state + " : " + tmp_state_change_number);
         if (tmp_dump_change_number == 0) {
             if (tmp_state_change_number == 3) {
                 // 当车辆相似度较长时间没有改变时 设置为运输态
@@ -229,5 +229,6 @@ public class MainCarBehaviorAnalysis {
             tmp_car_category = classifier.CAR_CATEGORY;
         }
         tmp_model_bitmap.recycle();
+        tmp_model_image.release();
     }
 }

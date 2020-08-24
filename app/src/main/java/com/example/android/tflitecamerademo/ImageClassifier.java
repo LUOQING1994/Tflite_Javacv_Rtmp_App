@@ -209,7 +209,7 @@ public class ImageClassifier {
     bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
     // Convert the image to floating point.
     int pixel = 0;
-    long startTime = SystemClock.uptimeMillis();
+//    long startTime = SystemClock.uptimeMillis();
     for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
       for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
         final int val = intValues[pixel++];
@@ -218,7 +218,7 @@ public class ImageClassifier {
         imgData.putFloat((((val) & 0xFF)-IMAGE_MEAN)/IMAGE_STD);
       }
     }
-    long endTime = SystemClock.uptimeMillis();
+//    long endTime = SystemClock.uptimeMillis();
 //    Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
   }
 
