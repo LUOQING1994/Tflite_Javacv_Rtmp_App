@@ -2,6 +2,7 @@ package com.example.android.tflitecamerademo;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.ImageView;
 
@@ -50,7 +51,7 @@ public class MainCarBehaviorAnalysis {
     Properties props = null;
     ImageClassifier classifier;
     CameraActivity activity;
-
+    private long thread_end_time = 0;
     public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys, ImageClassifier classifiers) {
         activity = activitys;
         props = activity.props;
@@ -61,18 +62,25 @@ public class MainCarBehaviorAnalysis {
             // ========================= 这里接入车载设备速度  ====== 暂时设置为0
             tmp_speed = (int)activity.currentSpeed;
             tmp_angle = (int)activity.currentAngle;
-            matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, tmp_speed, tmp_angle);
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    // 分类模型检测
-                    try {
-                        CarModelAnalysis(tmp_model_image);
-                    } catch (Exception e) {
-                        e.printStackTrace();
+            long startTime = SystemClock.uptimeMillis();
+            if ((startTime - thread_end_time) > 500 ){
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            // OpenCv算法检测
+                            matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, tmp_speed, tmp_angle);
+                            // 分类模型检测
+                            CarModelAnalysis(tmp_model_image);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
-                }
-            }).start();
+                }).start();
+                thread_end_time = startTime;
+            } else {
+                matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, tmp_speed, tmp_angle);
+            }
             timeF = 5;
         } else {
             timeF = timeF - 1;

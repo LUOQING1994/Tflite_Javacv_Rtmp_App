@@ -12,6 +12,7 @@ import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.app.Fragment;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -127,8 +128,8 @@ public class PushFragment extends Fragment {
     final private String logoPath = "/sdcard/daniulivelogo.png";
     private boolean isWritelogoFileSuccess = false;
 
-    final private String publishURL = "rtmp://192.168.43.1:1935/live/test";
-//    final private String publishURL = "rtmp://127.0.0.1:1935/live/test";
+//    final private String publishURL = "rtmp://192.168.43.1:1935/live/test";
+    final private String publishURL = "rtmp://127.0.0.1:1935/live/test";
 
     private static final int FRONT = 1;        //前置摄像头标记
     private static final int BACK = 2;        //后置摄像头标记
@@ -418,8 +419,10 @@ public class PushFragment extends Fragment {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
                     // 读取数据 进行图像处理
                     frame_data = BytesToBimap(data);
-
+                    long mainStartTime = SystemClock.uptimeMillis();
                     MatNumberUtils matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
+                    long mainEndTime = SystemClock.uptimeMillis();
+                    Log.d(TAG, "计算消耗: " + Long.toString(mainEndTime - mainStartTime));
                     frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
                             Bitmap.Config.ARGB_8888);
                     Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
