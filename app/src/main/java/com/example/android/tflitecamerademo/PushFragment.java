@@ -12,8 +12,11 @@ import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.app.Fragment;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.support.annotation.Nullable;
+import android.support.v13.app.FragmentCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -189,17 +192,22 @@ public class PushFragment extends Fragment {
         mainCarBehaviorAnalysis = new MainCarBehaviorAnalysis();
         matNumberUtils = new MatNumberUtils();
         activity = (CameraActivity) getActivity();
-        try {
-            classifier = new ImageClassifier(activity);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         if (getArguments() != null) {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
     }
-
+    /** Load the model and labels. */
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+        try {
+            classifier = new ImageClassifier(getActivity());
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to initialize an image classifier.");
+        }
+        startBackgroundThread();
+    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -408,7 +416,7 @@ public class PushFragment extends Fragment {
         mCamera.autoFocus(myAutoFocusCallback);
         mPreviewRunning = true;
     }
-    Bitmap frame_data;
+    private Bitmap frame_data;
     private long thread_end_time = 0;
     MatNumberUtils matNumberUtils;
     /**
@@ -434,32 +442,14 @@ public class PushFragment extends Fragment {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
                     frame_data = BytesToBimap(data);
                     // 读取数据 进行图像处理
-                    long thread_startTime = SystemClock.uptimeMillis();
-                    if (thread_end_time == 0) {
-                        thread_end_time = SystemClock.uptimeMillis();
-                    }
-                    if ((thread_startTime - thread_end_time) > 500 ){
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
-                                frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
-                                        Bitmap.Config.ARGB_8888);
-                                Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
-                            }
-                        }).start();
-                        thread_end_time = thread_startTime;
-                    }
-
-//                    Log.d(TAG, "计算消耗: " + Long.toString(mainEndTime - mainStartTime));
-                    // 显示处理过后的图像结果
-                    activity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            imageView.setImageBitmap(frame_data);
-                            textView.setText(matNumberUtils.getToShow());
-                        }
-                    });
+//                    long thread_startTime = SystemClock.uptimeMillis();
+//                    if (thread_end_time == 0) {
+//                        thread_end_time = SystemClock.uptimeMillis();
+//                    }
+//                    if ((thread_startTime - thread_end_time) > 500 ){
+//
+//                        thread_end_time = thread_startTime;
+//                    }
 
                 }
 
@@ -483,6 +473,46 @@ public class PushFragment extends Fragment {
         return BitmapFactory.decodeByteArray(jdata, 0, jdata.length);
     }
 
+    private HandlerThread backgroundThread;
+    private static final String HANDLE_THREAD_NAME = "CameraBackground";
+    private Handler backgroundHandler;
+    private final Object lock = new Object();
+    private boolean runClassifier = false;
+    private Bitmap model_frame_data;
+    /** Starts a background thread and its {@link Handler}. */
+    private void startBackgroundThread() {
+        backgroundThread = new HandlerThread(HANDLE_THREAD_NAME);
+        backgroundThread.start();
+        backgroundHandler = new Handler(backgroundThread.getLooper());
+        synchronized (lock) {
+            runClassifier = true;
+        }
+        backgroundHandler.post(periodicClassify);
+    }
+    /** Takes photos and classify them periodically. */
+    private Runnable periodicClassify =
+            new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (lock) {
+                        if (runClassifier) {
+                            classifyFrame();
+                        }
+                    }
+                    backgroundHandler.post(periodicClassify);
+                }
+            };
+    private void classifyFrame() {
+        if (classifier == null || getActivity() == null || !isStartPull || frame_data == null) {
+            showToast("等待推流开始。。。。。。");
+            return;
+        }
+        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
+        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+                Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
+        showToast(matNumberUtils.getToShow());
+    }
     /**
      * Shows a {@link } on the UI thread for the classification results.
      *
@@ -495,6 +525,7 @@ public class PushFragment extends Fragment {
                     new Runnable() {
                         @Override
                         public void run() {
+                            imageView.setImageBitmap(model_frame_data);
                             textView.setText(text);
                         }
                     });
@@ -1054,7 +1085,7 @@ public class PushFragment extends Fragment {
 
         return max_kbit_rate;
     }
-
+    static boolean isStartPull = false;  // 是否可以开始对数据进行处理
     class EventHandeV2 implements NTSmartEventCallbackV2 {
         @Override
         public void onNTSmartEventCallbackV2(long handle, int id, long param1, long param2, String param3, String param4, Object param5) {
@@ -1075,9 +1106,11 @@ public class PushFragment extends Fragment {
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_CONNECTED:
                     publisher_event = "连接成功..";
+                    isStartPull = true;
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_DISCONNECTED:
                     publisher_event = "连接断开..";
+                    isStartPull = false;
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_STOP:
                     publisher_event = "关闭..";

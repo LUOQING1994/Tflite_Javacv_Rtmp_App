@@ -148,6 +148,7 @@ class BaseActivity extends Activity {
         }
 //        currentAngle = Math.max(verAngle, horAngle);
         currentAngle = degreeY;
+        props.setProperty("current_angle", String.valueOf(currentAngle));
 //        Log.d("================", "currentAngle========>" + currentAngle);
     }
 
@@ -223,16 +224,18 @@ class BaseActivity extends Activity {
             int errorCode = location.getLocType();
 
             Log.d("================", "====latitude>" + latitude + "\tlongitude====>" + longitude);
-
+            props.setProperty("current_gps", longitude + "," + latitude);
             if (null == lastLatLng) {
                 lastLatLng = new LatLng(latitude, longitude);
             } else {
                 LatLng ll = new LatLng(latitude, longitude);
-                currentSpeed = DistanceUtil.getDistance(lastLatLng, ll);
+                // 放在gps漂移后 速度突变
+                currentSpeed = DistanceUtil.getDistance(lastLatLng, ll) > 40 ? 0: DistanceUtil.getDistance(lastLatLng, ll);
                 lastLatLng = ll;
             }
 
             Log.d("================", "currentSpeed========>" + currentSpeed);
+            props.setProperty("current_speed", String.valueOf(currentSpeed));
         }
     }
 }

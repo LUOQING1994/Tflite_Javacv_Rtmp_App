@@ -54,6 +54,7 @@ public class OpenCVTools {
         // 统一进行颜色转换
         Mat gary_now_flag = new Mat();
         Imgproc.cvtColor(cut_flag, gary_now_flag, Imgproc.COLOR_BGR2GRAY);
+        cut_flag.release();
         return gary_now_flag;
     }
     public Mat other_deal_flag(Mat flag){

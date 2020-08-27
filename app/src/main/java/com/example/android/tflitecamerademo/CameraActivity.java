@@ -65,10 +65,6 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    // 初始化全局的crash捕获
-    CrashHandlers handler = CrashHandlers.getInstance();
-    handler.init(getApplicationContext());
-
 
     // 初始化FFmpegFrameGrabber
 //    try {

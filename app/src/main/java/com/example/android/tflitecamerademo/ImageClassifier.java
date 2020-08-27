@@ -61,11 +61,10 @@ public class ImageClassifier {
   static final int DIM_IMG_SIZE_Y = 224;
 
   // start ================================   新加的参数 ===========================
-  static final int Analysis_IMG_SIZE_Y = 1280;
-  static final int Analysis_IMG_SIZE_X = 720;
 
   public int CAR_CATEGORY = 0; // 模型得到的货物的类别
   public double CAR_CATEGORY_PROBABILITY = 0.0; // 模型得到的货物的类别概率
+  public long CAR_CATEGORY_TIME = 0; // 模型识别的时间
 
   private static final String LABEL_CHINA_PATH = "retrained_labels_china.txt";  // 获取类别对应的中文名称
   private List<String> labelChinaText;
@@ -137,8 +136,8 @@ public class ImageClassifier {
 
     // smooth the results
     applyFilter();
-
-    textToShow =  textToShow +  "\n 耗时：" + Long.toString(endTime - startTime) + "ms" ;
+    CAR_CATEGORY_TIME = (endTime - startTime);
+    textToShow =  textToShow +  "\n 耗时：" + CAR_CATEGORY_TIME + "ms" ;
 
     return textToShow;
   }

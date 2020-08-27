@@ -1,10 +1,6 @@
 package com.example.android.tflitecamerademo;
 
-import android.app.Activity;
 import android.graphics.Bitmap;
-import android.os.SystemClock;
-import android.util.Log;
-import android.widget.ImageView;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -22,7 +18,6 @@ public class MainCarBehaviorAnalysis {
     Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
 
     // start ======================  OpenCV为主的算法需要的参数 =====================
-    int timeF = 5; // 每隔timeF取一张图片
     int timeF_switch_bg = 10;  // 当提取三张图片后 再替换对比底图
 
     // 数据转换的临时变量
@@ -39,8 +34,6 @@ public class MainCarBehaviorAnalysis {
     String textToShow = "";
     int tmp_speed = 0;
     int tmp_angle = 0;
-    Mat tmp_now_image = new Mat();
-    Mat tmp_model_image = new Mat();
     private int tmp_state_change_number = 0; // 记录运输变装载 装载变运输的次数
     private int tmp_dump_change_number = 0; // 记录运输变倾倒 倾倒变运输的次数
     private long diff_startTime = 0;
@@ -60,6 +53,7 @@ public class MainCarBehaviorAnalysis {
         activity = activitys;
         props = activity.props;
         classifier = classifiers;
+        Mat tmp_now_image = new Mat();
         Utils.bitmapToMat(bitmap_image, tmp_now_image);
         // ========================= 这里接入车载设备速度  ====== 暂时设置为0
         tmp_speed = (int)activity.currentSpeed;
@@ -69,8 +63,6 @@ public class MainCarBehaviorAnalysis {
         // 分类模型检测
         CarModelAnalysis(tmp_now_image);
         // todo     上传数据
-
-
         // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
         tmp_car_state = matNumberUtils.getNumber();
         Integer model_result_index = classifier.CAR_CATEGORY;
@@ -122,7 +114,6 @@ public class MainCarBehaviorAnalysis {
                 tmp_dump_change_number = Math.min(tmp_dump_change_number + 1, 2);
             }
         }
-        Log.i("时间", midTime + " :" + last_car_state + " : " + tmp_state_change_number);
         if (tmp_dump_change_number == 0) {
             if (tmp_state_change_number == 3) {
                 // 当车辆相似度较长时间没有改变 或者 速度较大时 设置为运输态
@@ -182,7 +173,7 @@ public class MainCarBehaviorAnalysis {
             tmp_car_state = 0;
             last_car_state = tmp_car_state;
         }
-
+//        Log.i("时间", midTime + " :" + midHullMidTime + " : " + tmp_state_change_number);
 //        Log.i("tmp_dump_change_number", tmp_dump_change_number + " : " + tmp_car_state);
 
 
@@ -192,12 +183,12 @@ public class MainCarBehaviorAnalysis {
                 "当前角度：" + tmp_angle + " \n " +
                 "当前速度：" + tmp_speed + " \n " + model_result;
         matNumberUtils.setToShow(textToShow);
+        getBaseInfoDta();  // 获取需要上传服务器的数据
         return matNumberUtils;
     }
 
     public MatNumberUtils mainCarBehaviorAnalysis(Mat tmp_image, int tmp_speed, int tmp_angle) {
         // 基础的图像处理
-//        tmp_model_image = tmp_image;
         Mat tmp_cut_image = openCVTools.deal_flag(tmp_image);
         // 初始化基础参数
         if (last_image.cols() == 0) {
@@ -254,5 +245,23 @@ public class MainCarBehaviorAnalysis {
         }
         tmp_model_bitmap.recycle();
         tmp_model_image.release();
+    }
+
+    /**
+     * 获取需要上传服务器的基本信息数据
+     */
+    public void getBaseInfoDta(){
+        props.setProperty("current_state",openCVTools.result_text.get(tmp_car_state));
+        props.setProperty("current_sim", String.valueOf(image_sim_number));
+        props.setProperty("current_sim_time", String.valueOf(midTime));
+        props.setProperty("current_hull", String.valueOf(now_image_hull));
+        props.setProperty("current_hull_time", String.valueOf(midHullMidTime));
+        props.setProperty("current_model_result", String.valueOf(classifier.CAR_CATEGORY));
+        props.setProperty("current_model_probably", String.valueOf(classifier.CAR_CATEGORY_PROBABILITY));
+        props.setProperty("current_model_time", String.valueOf(classifier.CAR_CATEGORY_TIME));
+        props.setProperty("last_state", String.valueOf(last_car_state));
+        props.setProperty("last_model_result", String.valueOf(last_car_category));
+        props.setProperty("current_Id", "川12312");
+
     }
 }
