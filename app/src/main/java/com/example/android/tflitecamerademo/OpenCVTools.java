@@ -305,20 +305,20 @@ public class OpenCVTools {
                     Imgproc.isContourConvex(approxf1)) {
                 number = number + 1;
                 // 绘制凸包
-                double tmp_weight = orgin_image.width() * 0.3;
-                double tmp_height = orgin_image.height() * 0.4;
-
-                for (int j = 0; j < approx.rows(); j++) {
-                    Point tmp_point = approx.toArray()[j].clone();
-                    tmp_point.x = tmp_weight + tmp_point.x;
-                    tmp_point.y = tmp_height + tmp_point.y;
-
-                    Point tmp_point1 = approx.toArray()[(j + 1) % approx.rows()].clone();
-                    tmp_point1.x = tmp_weight + tmp_point1.x;
-                    tmp_point1.y = tmp_height + tmp_point1.y;
-
-                    Imgproc.line(orgin_image, tmp_point, tmp_point1, new Scalar(0,255,0), 2, 8, 0);
-                }
+//                double tmp_weight = orgin_image.width() * 0.3;
+//                double tmp_height = orgin_image.height() * 0.4;
+//
+//                for (int j = 0; j < approx.rows(); j++) {
+//                    Point tmp_point = approx.toArray()[j].clone();
+//                    tmp_point.x = tmp_weight + tmp_point.x;
+//                    tmp_point.y = tmp_height + tmp_point.y;
+//
+//                    Point tmp_point1 = approx.toArray()[(j + 1) % approx.rows()].clone();
+//                    tmp_point1.x = tmp_weight + tmp_point1.x;
+//                    tmp_point1.y = tmp_height + tmp_point1.y;
+//
+//                    Imgproc.line(orgin_image, tmp_point, tmp_point1, new Scalar(0,255,0), 2, 8, 0);
+//                }
             }
             if (number > 200){
                 break;

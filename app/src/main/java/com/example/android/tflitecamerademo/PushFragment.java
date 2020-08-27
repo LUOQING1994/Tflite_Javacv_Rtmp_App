@@ -31,6 +31,8 @@ import com.eventhandle.NTSmartEventID;
 import com.voiceengine.NTAudioRecordV2;
 import com.voiceengine.NTAudioRecordV2Callback;
 
+import org.bytedeco.javacv.AndroidFrameConverter;
+import org.bytedeco.javacv.Frame;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
@@ -42,6 +44,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Properties;
+
+import static org.bytedeco.javacpp.avutil.AV_PIX_FMT_RGBA;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -128,7 +132,7 @@ public class PushFragment extends Fragment {
     final private String logoPath = "/sdcard/daniulivelogo.png";
     private boolean isWritelogoFileSuccess = false;
 
-//    final private String publishURL = "rtmp://192.168.43.1:1935/live/test";
+//    final private String publishURL = "rtmp://192.168.43.1:53/live/test";
     final private String publishURL = "rtmp://127.0.0.1:1935/live/test";
 
     private static final int FRONT = 1;        //前置摄像头标记
@@ -183,6 +187,7 @@ public class PushFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mainCarBehaviorAnalysis = new MainCarBehaviorAnalysis();
+        matNumberUtils = new MatNumberUtils();
         activity = (CameraActivity) getActivity();
         try {
             classifier = new ImageClassifier(activity);
@@ -229,12 +234,20 @@ public class PushFragment extends Fragment {
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        btnPush.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                startPush();
-            }
-        });
+        // view创建完毕后 直接执行推流操作
+        try {
+            Thread.sleep(1000);
+            startPush();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+//        btnPush.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View view) {
+////                startPush();
+//                readRtmpVedio();
+//            }
+//        });
     }
     private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
         @Override
@@ -396,6 +409,8 @@ public class PushFragment extends Fragment {
         mPreviewRunning = true;
     }
     Bitmap frame_data;
+    private long thread_end_time = 0;
+    MatNumberUtils matNumberUtils;
     /**
      *  开启推流服务
      *  1，terminal中输入：adb shell   ->   srs -c /data/srs/srs.conf   ->   netstat -nltp
@@ -417,16 +432,26 @@ public class PushFragment extends Fragment {
             } else {
                 if (isRTSPPublisherRunning || isPushingRtmp || isRecording || isPushingRtsp) {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
-                    // 读取数据 进行图像处理
                     frame_data = BytesToBimap(data);
-                    long mainStartTime = SystemClock.uptimeMillis();
-                    MatNumberUtils matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
-                    long mainEndTime = SystemClock.uptimeMillis();
-                    Log.d(TAG, "计算消耗: " + Long.toString(mainEndTime - mainStartTime));
-                    frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
-                            Bitmap.Config.ARGB_8888);
-                    Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
+                    // 读取数据 进行图像处理
+                    long thread_startTime = SystemClock.uptimeMillis();
+                    if (thread_end_time == 0) {
+                        thread_end_time = SystemClock.uptimeMillis();
+                    }
+                    if ((thread_startTime - thread_end_time) > 500 ){
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
+                                frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+                                        Bitmap.Config.ARGB_8888);
+                                Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
+                            }
+                        }).start();
+                        thread_end_time = thread_startTime;
+                    }
 
+//                    Log.d(TAG, "计算消耗: " + Long.toString(mainEndTime - mainStartTime));
                     // 显示处理过后的图像结果
                     activity.runOnUiThread(new Runnable() {
                         @Override
@@ -474,6 +499,66 @@ public class PushFragment extends Fragment {
                         }
                     });
         }
+    }
+
+    /**
+     * 拉取网络流信息
+     */
+    private FFmpegFrameGrabber grabber;
+    private AndroidFrameConverter converter;
+    private Frame frame;
+    private Bitmap bmp;
+    private boolean isRestart = true;
+    public void readRtmpVedio(){
+        // 根据id 获取UI界面中的ImageView对象 并把操作结果展示到该对象中
+        imageView = root.findViewById(R.id.imageView);
+//        String vedioUrl = "rtmp://192.168.42.174:1935/live/test";
+//        String vedioUrl = "rtmp://192.168.43.1/live/test";
+        String vedioUrl = "rtmp://192.168.101.183:1935/stream/pupils_trace";
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    grabber = new FFmpegFrameGrabber(vedioUrl);
+                    grabber.setImageWidth(1280);
+                    grabber.setImageHeight(720);
+                    //为了加快转bitmap这句一定要写
+                    grabber.setPixelFormat(AV_PIX_FMT_RGBA);
+                    grabber.start(String.valueOf(50*1024));
+                    isRestart = true;
+                    converter = new AndroidFrameConverter();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    textView.setText("服务器中没有该文件!");
+                }
+                while (isRestart) {
+                    try {
+                        frame = grabber.grabImage();
+                        if (frame == null){
+                            continue;
+                        }
+                        bmp = converter.convert(frame);
+                        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(bmp,activity,classifier);
+                        frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+                                Bitmap.Config.ARGB_8888);
+                        Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
+                        // 显示处理过后的图像结果
+                        activity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Log.i("寄哪里了", frame_data.getWidth() + "");
+                                imageView.setImageBitmap(frame_data);
+                                textView.setText(matNumberUtils.getToShow());
+                            }
+                        });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+        }).start();
     }
 
 

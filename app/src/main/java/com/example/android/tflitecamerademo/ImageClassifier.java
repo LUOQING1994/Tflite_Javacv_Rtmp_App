@@ -127,22 +127,18 @@ public class ImageClassifier {
     }
     // print the results
     String textToShow = printTopKLabels();
-    try {
-      convertBitmapToByteBuffer(bitmap);
-      // Here's where the magic happens!!!
-      long startTime = SystemClock.uptimeMillis();
-      tflite.run(imgData, labelProbArray);
-      long endTime = SystemClock.uptimeMillis();
+    convertBitmapToByteBuffer(bitmap);
+    // Here's where the magic happens!!!
+    long startTime = SystemClock.uptimeMillis();
+    tflite.run(imgData, labelProbArray);
+    long endTime = SystemClock.uptimeMillis();
 
 //    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
 
-      // smooth the results
-      applyFilter();
+    // smooth the results
+    applyFilter();
 
-      textToShow =  textToShow +  "\n 耗时：" + Long.toString(endTime - startTime) + "ms" ;
-    } catch ( Exception e){
-      e.printStackTrace();
-    }
+    textToShow =  textToShow +  "\n 耗时：" + Long.toString(endTime - startTime) + "ms" ;
 
     return textToShow;
   }

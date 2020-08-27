@@ -23,6 +23,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.FrameGrabber;
+import org.bytedeco.javacv.FrameRecorder;
 import org.opencv.android.OpenCVLoader;
 
 /** Main {@code Activity} class for the Camera app. */
@@ -62,6 +65,18 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    // 初始化全局的crash捕获
+    CrashHandlers handler = CrashHandlers.getInstance();
+    handler.init(getApplicationContext());
+
+
+    // 初始化FFmpegFrameGrabber
+//    try {
+//      FFmpegFrameGrabber.tryLoad();
+//      FFmpegFrameRecorder.tryLoad();
+//    } catch (FrameGrabber.Exception | FrameRecorder.Exception e) {
+//      e.printStackTrace();
+//    }
     // 在初始化主Activity时 设置当前显示窗口的xml文件
     setContentView(R.layout.activity_camera);
 
