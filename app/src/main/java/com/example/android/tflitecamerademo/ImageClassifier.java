@@ -124,14 +124,14 @@ public class ImageClassifier {
       Log.e(TAG, "Image classifier has not been initialized; Skipped.");
       return "Uninitialized Classifier.";
     }
-    // print the results
-    String textToShow = printTopKLabels();
+
     convertBitmapToByteBuffer(bitmap);
     // Here's where the magic happens!!!
     long startTime = SystemClock.uptimeMillis();
     tflite.run(imgData, labelProbArray);
     long endTime = SystemClock.uptimeMillis();
-
+// print the results
+    String textToShow = printTopKLabels();
 //    Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
 
     // smooth the results

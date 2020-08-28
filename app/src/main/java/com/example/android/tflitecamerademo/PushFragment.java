@@ -5,7 +5,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -14,9 +17,7 @@ import android.os.Bundle;
 import android.app.Fragment;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.SystemClock;
 import android.support.annotation.Nullable;
-import android.support.v13.app.FragmentCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -37,16 +38,12 @@ import com.voiceengine.NTAudioRecordV2Callback;
 import org.bytedeco.javacv.AndroidFrameConverter;
 import org.bytedeco.javacv.Frame;
 import org.opencv.android.Utils;
-import org.opencv.core.Mat;
-import org.opencv.core.Size;
-import org.opencv.imgproc.Imgproc;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Properties;
 
 import static org.bytedeco.javacpp.avutil.AV_PIX_FMT_RGBA;
 
@@ -64,7 +61,6 @@ public class PushFragment extends Fragment {
     private CameraActivity activity;
     private SurfaceView surfaceView;
     private SurfaceHolder surfaceHolder;
-    private Button btnPush;
     private TextView textView;
     private ImageView imageView;
     private MainCarBehaviorAnalysis mainCarBehaviorAnalysis;
@@ -215,14 +211,11 @@ public class PushFragment extends Fragment {
         root = inflater.inflate(R.layout.fragment_push, container, false);
         ctx = getContext();
         surfaceView = root.findViewById(R.id.surfaceView);
-        btnPush = root.findViewById(R.id.btnPush);
         textView = root.findViewById(R.id.text);
         imageView = root.findViewById(R.id.imageView);
-
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(surfaceCallback);
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-
         //自动聚焦变量回调
         myAutoFocusCallback = new Camera.AutoFocusCallback() {
             public void onAutoFocus(boolean success, Camera camera) {
@@ -249,13 +242,6 @@ public class PushFragment extends Fragment {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-//        btnPush.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-////                startPush();
-//                readRtmpVedio();
-//            }
-//        });
     }
     private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
         @Override
@@ -417,7 +403,6 @@ public class PushFragment extends Fragment {
         mPreviewRunning = true;
     }
     private Bitmap frame_data;
-    private long thread_end_time = 0;
     MatNumberUtils matNumberUtils;
     /**
      *  开启推流服务
@@ -504,29 +489,63 @@ public class PushFragment extends Fragment {
             };
     private void classifyFrame() {
         if (classifier == null || getActivity() == null || !isStartPull || frame_data == null) {
-            showToast("等待推流开始。。。。。。");
+            showToast("等待推流开始。。。。。。",null);
             return;
         }
+        long startTime = System.currentTimeMillis();
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
         model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
-                Bitmap.Config.ARGB_8888);
+                Bitmap.Config.ARGB_4444);
         Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
-        showToast(matNumberUtils.getToShow());
+        long endTime = System.currentTimeMillis();
+        Log.i("时间", String.valueOf((endTime - startTime)));
+        // 绘制结果
+        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
+        showToast(null,unDelMap);
+    }
+    /**
+     * 结果绘制
+     */
+    public Bitmap drawImageText(String showText,Bitmap unDelMap){
+        Canvas canvas = new Canvas(unDelMap);
+        // new antialised Paint
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        // text color - #3D3D3D
+        paint.setColor(Color.rgb(255, 0, 0));
+        // text size in pixels
+        paint.setTextSize((int) (80));
+        // draw text to the Canvas center
+        Rect bounds = new Rect();
+//	    paint.setTextAlign(Align.CENTER);
+        String[] splitArray = showText.split("\n");
+
+        for (int i = 0; i < splitArray.length;i ++) {
+
+            int x = 100;
+            int y = 100 + i * 80;
+            canvas.drawText(splitArray[i], x , y , paint);
+        }
+
+        return unDelMap;
     }
     /**
      * Shows a {@link } on the UI thread for the classification results.
      *
      * @param text The message to show
      */
-    private void showToast(final String text) {
+    private void showToast(final String text, Bitmap show_frame_data) {
         final Activity activity = getActivity();
         if (activity != null) {
             activity.runOnUiThread(
                     new Runnable() {
                         @Override
                         public void run() {
-                            imageView.setImageBitmap(model_frame_data);
-                            textView.setText(text);
+                            if (text != null){
+                                textView.setText(text);
+                            }
+                            if (show_frame_data != null){
+                                imageView.setImageBitmap(show_frame_data);
+                            }
                         }
                     });
         }

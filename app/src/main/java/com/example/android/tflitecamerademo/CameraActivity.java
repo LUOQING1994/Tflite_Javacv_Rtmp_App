@@ -77,10 +77,10 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
     setContentView(R.layout.activity_camera);
 
 // 创建一个Button对象 并指向前面UI界面中的button组件
-    btn = (Button)findViewById(R.id.button);
+//    btn = (Button)findViewById(R.id.button);
     // 为id等于test_button的按钮对象添加一个点击事件
     // 继承View.OnClickListener接口
-    btn.setOnClickListener(this);
+//    btn.setOnClickListener(this);
 
     boolean success = OpenCVLoader.initDebug();
     if (success) {

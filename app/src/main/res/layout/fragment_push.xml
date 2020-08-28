@@ -8,19 +8,27 @@
 <!--    android:alpha="0"-->
     <android.view.SurfaceView
         android:id="@+id/surfaceView"
+        android:alpha="0"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center" />
 
-    <Button
-        android:id="@+id/btnPush"
+<!--    <Button-->
+<!--        android:id="@+id/btnPush"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_alignParentEnd="true"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="开始推送"/>-->
+
+    <TextView
+        android:id="@+id/text"
         android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
-        android:layout_height="wrap_content"
-        android:text="开始推送"/>
-    <TextView android:id="@+id/text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="77dp"
+        android:layout_marginEnd="158dp"
         android:paddingLeft="180dp"
         android:textColor="#FFF"
         android:textSize="18sp"
@@ -28,12 +36,12 @@
 
     <ImageView
         android:id="@+id/imageView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginStart="55dp"
-        android:layout_marginTop="212dp"
-        android:src="@drawable/people" />
+        android:layout_centerInParent="true"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"/>
+
 </RelativeLayout>

@@ -1,6 +1,7 @@
 package com.example.android.tflitecamerademo;
 
 import android.graphics.Bitmap;
+import android.util.Log;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -28,7 +29,6 @@ public class MainCarBehaviorAnalysis {
     Integer tmp_last_car_state = 0;  // 记录车辆上一时刻中间状态
     Integer now_image_hull = 0;  // 当前检测区域的凸包数量
 
-    String model_result = ""; // 记录模型货物分类结果
     int last_car_category = 6; // 默认上一时刻车载类别为篷布
     int tmp_car_category = 6; // 记录车载类别的中间状态
     String textToShow = "";
@@ -58,10 +58,11 @@ public class MainCarBehaviorAnalysis {
         // ========================= 这里接入车载设备速度  ====== 暂时设置为0
         tmp_speed = (int)activity.currentSpeed;
         tmp_angle = (int)activity.currentAngle;
+//        Log.i("角度信息", tmp_speed + " ============= " + tmp_angle);
         // OpenCv算法检测
         matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, tmp_speed, tmp_angle);
         // 分类模型检测
-        CarModelAnalysis(tmp_now_image);
+        String class_result = CarModelAnalysis(tmp_now_image);
         // todo     上传数据
         // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
         tmp_car_state = matNumberUtils.getNumber();
@@ -181,9 +182,11 @@ public class MainCarBehaviorAnalysis {
                 "凸包数量: " + now_image_hull + " \n " +
                 "相似度 : " + image_sim_number + " \n " +
                 "当前角度：" + tmp_angle + " \n " +
-                "当前速度：" + tmp_speed + " \n " + model_result;
+                "当前速度：" + tmp_speed + " \n " + class_result;
         matNumberUtils.setToShow(textToShow);
+        matNumberUtils.setIamge(tmp_now_image);
         getBaseInfoDta();  // 获取需要上传服务器的数据
+
         return matNumberUtils;
     }
 
@@ -210,10 +213,8 @@ public class MainCarBehaviorAnalysis {
         matNumberUtils = openCVTools.other_contours_Hull(tmp_cut_image, tmp_image);
         // 获取凸包数
         now_image_hull = matNumberUtils.getNumber();
-
         // 结合 陀螺仪 凸包检测 进行车辆行为分析
         tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number, now_image_hull, tmp_speed, tmp_angle, props);
-        matNumberUtils.setNumber(tmp_car_state);
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
         if (timeF_switch_bg <= 0) {
@@ -223,21 +224,21 @@ public class MainCarBehaviorAnalysis {
         } else {
             timeF_switch_bg = timeF_switch_bg - 1;
         }
+        matNumberUtils.setNumber(tmp_car_state);
         return matNumberUtils;
     }
 
     /**
      * 模型类别检测
      */
-    public void CarModelAnalysis(Mat image) {
+    public String CarModelAnalysis(Mat image) {
         Mat tmp_model_image = new Mat();
         // 模型检测
         Imgproc.resize(image, tmp_model_image, new Size(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y));
         Bitmap tmp_model_bitmap = Bitmap.createBitmap(tmp_model_image.cols(), tmp_model_image.rows(),
-                Bitmap.Config.ARGB_8888);
+                Bitmap.Config.ARGB_4444);
         Utils.matToBitmap(tmp_model_image, tmp_model_bitmap);
-        model_result = classifier.classifyFrame(tmp_model_bitmap);
-
+        String model_result = classifier.classifyFrame(tmp_model_bitmap);
         // 记录前后时刻 模型记录的类别
         if (tmp_car_category != classifier.CAR_CATEGORY) {
             last_car_category = tmp_car_category;
@@ -245,6 +246,7 @@ public class MainCarBehaviorAnalysis {
         }
         tmp_model_bitmap.recycle();
         tmp_model_image.release();
+        return model_result;
     }
 
     /**

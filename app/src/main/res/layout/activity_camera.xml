@@ -21,9 +21,9 @@
     android:background="#000"
     tools:context="com.example.android.tflitecamerademo.CameraActivity" >
 
-    <Button
-        android:id="@+id/button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="开始进行检测" />
+<!--    <Button-->
+<!--        android:id="@+id/button"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="开始进行检测" />-->
 </FrameLayout>
