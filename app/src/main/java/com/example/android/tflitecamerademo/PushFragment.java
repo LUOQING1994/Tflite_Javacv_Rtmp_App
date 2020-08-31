@@ -3,6 +3,8 @@ package com.example.android.tflitecamerademo;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -17,7 +19,10 @@ import android.os.Bundle;
 import android.app.Fragment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v13.app.FragmentCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -164,6 +169,10 @@ public class PushFragment extends Fragment {
     private String encrypt_key = "";
     private String encrypt_iv = "";
     private ImageClassifier classifier;  // 模型检测
+
+
+    private boolean checkedPermissions = false;
+    private static final int PERMISSIONS_REQUEST_CODE = 1;
     static {
         System.loadLibrary("SmartPublisher");
     }
@@ -213,6 +222,10 @@ public class PushFragment extends Fragment {
         surfaceView = root.findViewById(R.id.surfaceView);
         textView = root.findViewById(R.id.text);
         imageView = root.findViewById(R.id.imageView);
+        return root;
+    }
+
+    private void hasP(){
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(surfaceCallback);
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -229,18 +242,43 @@ public class PushFragment extends Fragment {
         };
 
         libPublisher = new SmartPublisherJniV2();
-        return root;
+    }
+
+    private boolean allPermissionsGranted() {
+        for (String permission : getRequiredPermissions()) {
+            if (ContextCompat.checkSelfPermission(getActivity(), permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+    private String[] getRequiredPermissions() {
+        Activity activity = getActivity();
+        try {
+            PackageInfo info =
+                    activity
+                            .getPackageManager()
+                            .getPackageInfo(activity.getPackageName(), PackageManager.GET_PERMISSIONS);
+            String[] ps = info.requestedPermissions;
+            if (ps != null && ps.length > 0) {
+                return ps;
+            } else {
+                return new String[0];
+            }
+        } catch (Exception e) {
+            return new String[0];
+        }
     }
 
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        // view创建完毕后 直接执行推流操作
-        try {
-            Thread.sleep(1000);
-            startPush();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (!checkedPermissions && !allPermissionsGranted()) {
+            FragmentCompat.requestPermissions(PushFragment.this, getRequiredPermissions(), PERMISSIONS_REQUEST_CODE);
+        } else {
+            checkedPermissions = true;
+            hasP();
         }
     }
     private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
@@ -264,7 +302,7 @@ public class PushFragment extends Fragment {
                 }
 
                 if (mCamera == null) {
-                    mCamera = openCamera(currentCameraType);
+                    openCamera(currentCameraType);
                 }
 
             } catch (Exception e) {
@@ -283,6 +321,15 @@ public class PushFragment extends Fragment {
             Log.i(TAG, "Surface Destroyed");
         }
     };
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSIONS_REQUEST_CODE){
+            Log.i("==========", "请求权限回调成功");
+            hasP();
+        }
+    }
 
     //Check if it has back camera
     private int findBackCamera() {
@@ -315,7 +362,7 @@ public class PushFragment extends Fragment {
     }
 
     @SuppressLint("NewApi")
-    private Camera openCamera(int type) {
+    private void openCamera(int type) {
         int frontIndex = -1;
         int backIndex = -1;
         int cameraCount = Camera.getNumberOfCameras();
@@ -335,12 +382,18 @@ public class PushFragment extends Fragment {
         currentCameraType = type;
         if (type == FRONT && frontIndex != -1) {
             curCameraIndex = frontIndex;
-            return Camera.open(frontIndex);
+            mCamera =  Camera.open(frontIndex);
         } else if (type == BACK && backIndex != -1) {
             curCameraIndex = backIndex;
-            return Camera.open(backIndex);
+            mCamera =  Camera.open(backIndex);
         }
-        return null;
+        // view创建完毕后 直接执行推流操作
+        try {
+            Thread.sleep(1000);
+            startPush();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     /*it will call when surfaceChanged*/
@@ -426,6 +479,10 @@ public class PushFragment extends Fragment {
                 if (isRTSPPublisherRunning || isPushingRtmp || isRecording || isPushingRtsp) {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
                     frame_data = BytesToBimap(data);
+                    currentSpeed = (int)activity.currentSpeed;
+                    currentAngle = (int)activity.currentAngle;
+//                    Log.i("速度==",(int)activity.currentSpeed + "");
+//                    Log.i("角度==",(int)activity.currentAngle + "");
                     // 读取数据 进行图像处理
 //                    long thread_startTime = SystemClock.uptimeMillis();
 //                    if (thread_end_time == 0) {
@@ -464,6 +521,8 @@ public class PushFragment extends Fragment {
     private final Object lock = new Object();
     private boolean runClassifier = false;
     private Bitmap model_frame_data;
+    private int currentSpeed;
+    private int currentAngle;
     /** Starts a background thread and its {@link Handler}. */
     private void startBackgroundThread() {
         backgroundThread = new HandlerThread(HANDLE_THREAD_NAME);
@@ -493,12 +552,12 @@ public class PushFragment extends Fragment {
             return;
         }
         long startTime = System.currentTimeMillis();
-        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier);
+        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
         model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
                 Bitmap.Config.ARGB_4444);
         Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
         long endTime = System.currentTimeMillis();
-        Log.i("时间", String.valueOf((endTime - startTime)));
+//        Log.i("时间", String.valueOf((endTime - startTime)));
         // 绘制结果
         Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
         showToast(null,unDelMap);
@@ -514,9 +573,6 @@ public class PushFragment extends Fragment {
         paint.setColor(Color.rgb(255, 0, 0));
         // text size in pixels
         paint.setTextSize((int) (80));
-        // draw text to the Canvas center
-        Rect bounds = new Rect();
-//	    paint.setTextAlign(Align.CENTER);
         String[] splitArray = showText.split("\n");
 
         for (int i = 0; i < splitArray.length;i ++) {
@@ -589,7 +645,9 @@ public class PushFragment extends Fragment {
                             continue;
                         }
                         bmp = converter.convert(frame);
-                        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(bmp,activity,classifier);
+                        currentSpeed = (int)activity.currentSpeed;
+                        currentAngle = (int)activity.currentAngle;
+                        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(bmp,activity,classifier,currentSpeed, currentAngle);
                         frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
                                 Bitmap.Config.ARGB_8888);
                         Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);

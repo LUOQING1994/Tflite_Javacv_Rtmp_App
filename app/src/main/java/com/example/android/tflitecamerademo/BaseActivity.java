@@ -146,8 +146,8 @@ class BaseActivity extends Activity {
         if (horAngle > 90.0) {
             horAngle = horAngle - 90.0;
         }
-//        currentAngle = Math.max(verAngle, horAngle);
-        currentAngle = degreeY;
+        currentAngle = Math.max(verAngle, horAngle);
+//        currentAngle = degreeY;
         props.setProperty("current_angle", String.valueOf(currentAngle));
 //        Log.d("================", "currentAngle========>" + currentAngle);
     }
@@ -223,7 +223,7 @@ class BaseActivity extends Activity {
             //获取定位类型、定位错误返回码，具体信息可参照类参考中BDLocation类中的说明
             int errorCode = location.getLocType();
 
-            Log.d("================", "====latitude>" + latitude + "\tlongitude====>" + longitude);
+//            Log.d("================", "====latitude>" + latitude + "\tlongitude====>" + longitude);
             props.setProperty("current_gps", longitude + "," + latitude);
             if (null == lastLatLng) {
                 lastLatLng = new LatLng(latitude, longitude);
@@ -234,7 +234,7 @@ class BaseActivity extends Activity {
                 lastLatLng = ll;
             }
 
-            Log.d("================", "currentSpeed========>" + currentSpeed);
+//            Log.d("================", "currentSpeed========>" + currentSpeed);
             props.setProperty("current_speed", String.valueOf(currentSpeed));
         }
     }

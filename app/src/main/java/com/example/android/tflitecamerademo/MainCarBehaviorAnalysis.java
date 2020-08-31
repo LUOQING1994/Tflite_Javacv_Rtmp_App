@@ -1,7 +1,6 @@
 package com.example.android.tflitecamerademo;
 
 import android.graphics.Bitmap;
-import android.util.Log;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -15,25 +14,23 @@ public class MainCarBehaviorAnalysis {
     private CarBehaviorAnalysisByOpenCv carBehaviorAnalysisByOpenCv = new CarBehaviorAnalysisByOpenCv();
     private OpenCVTools openCVTools = new OpenCVTools();
     private MatNumberUtils matNumberUtils = new MatNumberUtils();
-    Mat last_image = new Mat();  // 上一时刻的图片
-    Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
+    private Mat last_image = new Mat();  // 上一时刻的图片
+    private Mat tmp_last_image = new Mat(); // 记录当前时刻图片的中间状态
 
     // start ======================  OpenCV为主的算法需要的参数 =====================
-    int timeF_switch_bg = 10;  // 当提取三张图片后 再替换对比底图
+    private int timeF_switch_bg = 10;  // 当提取三张图片后 再替换对比底图
 
     // 数据转换的临时变量
-    Integer tmp_car_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
+    private Integer tmp_car_state = 0; // 以霍夫直线为主 所得到的车辆行为识别结果
 
-    Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
-    Integer last_car_state = 0;  // 记录车辆上一时刻状态
-    Integer tmp_last_car_state = 0;  // 记录车辆上一时刻中间状态
-    Integer now_image_hull = 0;  // 当前检测区域的凸包数量
+    private Integer image_sim_number = 10;  // 前后两帧相似度持续大于image_sim_through的上限
+    private Integer last_car_state = 0;  // 记录车辆上一时刻状态
+    private Integer tmp_last_car_state = 0;  // 记录车辆上一时刻中间状态
+    private Integer now_image_hull = 0;  // 当前检测区域的凸包数量
 
-    int last_car_category = 6; // 默认上一时刻车载类别为篷布
-    int tmp_car_category = 6; // 记录车载类别的中间状态
-    String textToShow = "";
-    int tmp_speed = 0;
-    int tmp_angle = 0;
+    private int last_car_category = 6; // 默认上一时刻车载类别为篷布
+    private int tmp_car_category = 6; // 记录车载类别的中间状态
+    private String textToShow = "";
     private int tmp_state_change_number = 0; // 记录运输变装载 装载变运输的次数
     private int tmp_dump_change_number = 0; // 记录运输变倾倒 倾倒变运输的次数
     private long diff_startTime = 0;
@@ -44,23 +41,54 @@ public class MainCarBehaviorAnalysis {
     private long hullStartTime = 0;  // 凸包不为0的时间
     private long hullEndTime = 0;  // 凸包为0的时间
     private long midHullMidTime = 0;  // 凸包为0的持续时间
-    boolean hull_start_time_flag = true;
-    boolean hull_end_time_flag = true;
-    Properties props = null;
-    ImageClassifier classifier;
-    CameraActivity activity;
-    public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys, ImageClassifier classifiers) {
+    private boolean hull_start_time_flag = true;
+    private boolean hull_end_time_flag = true;
+    private long speedStartTime = 0;  // 速度不为0的时间
+    private long speedEndTime = 0;  // 速度为0的时间
+    private long speedMidTime = 0;  // 速度为0的持续时间
+    private boolean speed_start_time_flag = true;
+    private boolean speed_end_time_flag = true;
+    private Properties props = null;
+    private ImageClassifier classifier;
+    private CameraActivity activity;
+    public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys,
+                                              ImageClassifier classifiers, int tmp_speed, int tmp_angle) {
         activity = activitys;
         props = activity.props;
         classifier = classifiers;
         Mat tmp_now_image = new Mat();
         Utils.bitmapToMat(bitmap_image, tmp_now_image);
-        // ========================= 这里接入车载设备速度  ====== 暂时设置为0
-        tmp_speed = (int)activity.currentSpeed;
-        tmp_angle = (int)activity.currentAngle;
-//        Log.i("角度信息", tmp_speed + " ============= " + tmp_angle);
+
+        // 计算速度大于4的持续时间间隔
+        if (tmp_speed > Integer.parseInt(props.getProperty("line_speed_thought")) && speed_start_time_flag) {
+            speedStartTime = System.currentTimeMillis();
+            speed_start_time_flag = false;
+            speed_end_time_flag = true;
+        } else if (tmp_speed < Integer.parseInt(props.getProperty("line_speed_thought")) && speed_end_time_flag){
+            speedEndTime = System.currentTimeMillis();
+            speed_start_time_flag = true;
+            speed_end_time_flag = false;
+        } else if (tmp_speed < Integer.parseInt(props.getProperty("line_speed_thought"))){
+            speedStartTime = System.currentTimeMillis();
+            speedEndTime =  System.currentTimeMillis();
+        }
+        if (speed_end_time_flag) {    // 凸包一直没变化
+            speedEndTime =  System.currentTimeMillis();
+        }
+        // 当时差超过1分钟时 强制使得midspeedMidTime保持在60
+        if (speedMidTime > 58 && speed_end_time_flag){
+            speedMidTime = 60; // 暂时使用秒
+        } else {
+            long diff = speedEndTime - speedStartTime;
+            long day = diff / (24 * 60 * 60 * 1000);
+            long hour = (diff / (60 * 60 * 1000) - day * 24);
+            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
+            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
+            speedMidTime = sec;
+        }
+
         // OpenCv算法检测
-        matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, tmp_speed, tmp_angle);
+        matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, speedMidTime, tmp_angle);
         // 分类模型检测
         String class_result = CarModelAnalysis(tmp_now_image);
         // todo     上传数据
@@ -69,8 +97,8 @@ public class MainCarBehaviorAnalysis {
         Integer model_result_index = classifier.CAR_CATEGORY;
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
-                && model_result_prob > 0.85 && tmp_speed == 0 && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number"))
-                && tmp_angle < 8 && now_image_hull > 5) { // 加入凸包是为了防止模型识别出错
+                && model_result_prob > 0.85 && tmp_speed < speedMidTime && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number"))
+                && tmp_angle < 8) {
             // 说明模型已经识别到了货物 此时 强制设置货车状态为装载
             tmp_car_state = -1;
         } else if (last_car_state == 1 && tmp_car_state == -1) { // 上一时刻为倾倒 当前时刻为装载 强制设置成倾倒
@@ -87,6 +115,9 @@ public class MainCarBehaviorAnalysis {
             diff_endTime = System.currentTimeMillis();
             count_end_time_flag = false;
             count_start_time_flag = true;
+        }else if (image_sim_number != Integer.parseInt(props.getProperty("image_sim_number") ) && !count_end_time_flag){
+            diff_startTime = System.currentTimeMillis();
+            diff_endTime =  System.currentTimeMillis();
         }
 
         if (count_end_time_flag) {    // 相似度高 但一直没有出现画面变化
@@ -133,7 +164,7 @@ public class MainCarBehaviorAnalysis {
             }
         } else {
             if (tmp_dump_change_number <= 2 && tmp_angle > Integer.parseInt(props.getProperty("hull_angle_through"))
-                    && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number"))) {
+                    && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number")) && speedMidTime < Integer.parseInt(props.getProperty("hull_speed_thought")) ) {
                 // 当倾倒变运输 或 运输变倾倒出现次数小于2时 设置为倾倒
                 tmp_car_state = 1;
                 last_car_state = tmp_last_car_state;
@@ -152,7 +183,11 @@ public class MainCarBehaviorAnalysis {
             hullEndTime = System.currentTimeMillis();
             hull_start_time_flag = true;
             hull_end_time_flag = false;
+        } else if (now_image_hull > 10){
+            hullStartTime = System.currentTimeMillis();
+            hullEndTime =  System.currentTimeMillis();
         }
+
         if (hull_end_time_flag) {    // 凸包一直没变化
             hullEndTime =  System.currentTimeMillis();
         }
@@ -190,7 +225,7 @@ public class MainCarBehaviorAnalysis {
         return matNumberUtils;
     }
 
-    public MatNumberUtils mainCarBehaviorAnalysis(Mat tmp_image, int tmp_speed, int tmp_angle) {
+    public MatNumberUtils mainCarBehaviorAnalysis(Mat tmp_image, long tmp_speed, int tmp_angle) {
         // 基础的图像处理
         Mat tmp_cut_image = openCVTools.deal_flag(tmp_image);
         // 初始化基础参数
