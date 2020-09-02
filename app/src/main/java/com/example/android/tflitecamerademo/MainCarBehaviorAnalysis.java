@@ -72,6 +72,10 @@ public class MainCarBehaviorAnalysis {
 
         Integer model_result_index = classifier.CAR_CATEGORY;
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
+        Log.i("opencv结果", "==========================");
+        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
+        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
+        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && 1 > model_result_prob && model_result_prob > 0.85
@@ -89,15 +93,17 @@ public class MainCarBehaviorAnalysis {
                 tmp_car_state = 1;
             }
         }
-        if (model_result_index == 6 && 1 > model_result_prob && model_result_prob > 0.95
+        if (model_result_index == 6 && 1 > model_result_prob && model_result_prob > 0.9
                 && now_image_hull < 10 ){
             //  当模型识别结果为幕布且概率较高时 强制设置为运输（预防在倾倒前 打开幕布时 避免识别成装载）
             tmp_car_state = 0;
+            tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
         } else if (model_result_index == 5 && 1 > model_result_prob && model_result_prob > 0.9
-                && tmp_last_car_state == 1 && tmp_angle < 15){
+                && tmp_angle < 15){
             //  当模型识别结果为空且概率较高时 强制设置为运输（预防在倾倒后 由于挡板晃动 导致识别成装载）
             tmp_car_state = 0;
+            tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
         } else {
             // 判断是否出现 装载变运输 运输变装载的情况
@@ -116,23 +122,24 @@ public class MainCarBehaviorAnalysis {
                 tmp_state_change_number = 0;
             }
         }
-        Log.i("第一次结果", tmp_car_state + " ： " + tmp_state_change_number + " : " + tmp_car_load + " : " + now_image_hull);
-        Log.i("第三次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
+        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
+        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
 
         //    ==========  利用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输     ===========================
         if (simMidTime > Integer.parseInt(props.getProperty("sim_time_through"))
                 || hullMidTime > Integer.parseInt(props.getProperty("hull_time_through"))
                 || speedMidTime > Integer.parseInt(props.getProperty("speed_time_through"))){
             tmp_car_state = 0;
+            tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
         }
-        Log.i("第四次结果", tmp_car_state + " ： " + last_car_state + " : " + tmp_last_car_state);
+        Log.i("第三次结果", tmp_car_state + " ： " + last_car_state + " : " + tmp_last_car_state);
         //   ===========  更新last_car_state的状态     ======================
         if( tmp_car_state != tmp_last_car_state){
             last_car_state = tmp_last_car_state;
             tmp_last_car_state = tmp_car_state;
         }
-        Log.i("第五次结果", tmp_car_state + " ： " + last_car_state + " : " + tmp_last_car_state + " : " + tmp_state_change_number);
+        Log.i("第四次结果", "tmp_car_state :" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " tmp_state_change_number: " + tmp_state_change_number);
 
 
         textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
@@ -177,7 +184,7 @@ public class MainCarBehaviorAnalysis {
         // 计算凸包大于阈值的持续时间
         countHullTime();
         // 结合 陀螺仪 凸包检测 进行车辆行为分析
-        tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(image_sim_number,now_image_hull,speedMidTime, tmp_angle, props);
+        tmp_car_state = carBehaviorAnalysisByOpenCv.carBehaviorAnalysisByHull(simMidTime,now_image_hull,speedMidTime, tmp_angle, props);
         matNumberUtils.setNumber(tmp_car_state);
 
         // 相识度对比底片替换 使得last_image与flag相差一定帧数
