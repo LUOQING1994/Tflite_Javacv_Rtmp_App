@@ -20,20 +20,6 @@
 <!--        android:layout_height="wrap_content"-->
 <!--        android:text="开始推送"/>-->
 
-    <TextView
-        android:id="@+id/text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="77dp"
-        android:layout_marginEnd="158dp"
-        android:paddingLeft="180dp"
-        android:textColor="#FFF"
-        android:textSize="18sp"
-        android:textStyle="bold" />
-
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
@@ -43,5 +29,21 @@
         android:layout_centerInParent="true"
         android:layout_marginStart="0dp"
         android:layout_marginTop="0dp"/>
+
+    <TextView
+        android:id="@+id/text"
+        android:layout_width="wrap_content"
+        android:layout_height="585dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="13dp"
+        android:layout_marginEnd="17dp"
+        android:paddingLeft="180dp"
+        android:textColor="#FFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
 
 </RelativeLayout>

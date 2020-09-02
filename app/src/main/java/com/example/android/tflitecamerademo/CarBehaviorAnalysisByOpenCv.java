@@ -28,19 +28,18 @@ public class CarBehaviorAnalysisByOpenCv {
 
         int tmp_car_state;
         if ((now_angle > hull_angle_through)){ // 角度大于15 则有可能出现倾倒行为 去除凸包 防止夜间倾倒
-            if ((speed_time < speed_time_through) && (image_sim_number != image_sim_number_through)) { // 速度大于阈值的持续时间 且相似度没有连续过高
+            if ((speed_time < speed_time_through) && (image_sim_number != image_sim_number_through)) { // 速度小于6 且相似度没有连续过高
                 tmp_car_state = 1;    // 视为倾倒
             } else {
                 tmp_car_state = 0;    // 视为运输
             }
-        } else if ((now_angle < hull_angle_through - 8) && (speed_time < speed_time_through)){ // 角度小于10 且速度大于阈值的持续时间小于初始值 则有可能出现装载
-            if ((now_image_hull > hull_number_through) && (image_sim_number != image_sim_number_through)){ // 当前凸包要大于10 且相似度没有连续过高
+        } else {
+            if (speed_time < speed_time_through
+                    && now_image_hull > hull_number_through && image_sim_number != image_sim_number_through){
                 tmp_car_state = -1;   // 视为装载
-            } else {
-                tmp_car_state = 0;    // 视为运输
+            } else {  // 其他情况 视为运输
+                tmp_car_state = 0;
             }
-        } else {  // 其他情况 视为运输
-            tmp_car_state = 0;
         }
 
         return tmp_car_state;

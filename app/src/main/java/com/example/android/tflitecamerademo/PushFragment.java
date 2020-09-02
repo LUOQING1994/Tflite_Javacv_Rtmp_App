@@ -481,18 +481,6 @@ public class PushFragment extends Fragment {
                     frame_data = BytesToBimap(data);
                     currentSpeed = (int)activity.currentSpeed;
                     currentAngle = (int)activity.currentAngle;
-//                    Log.i("速度==",(int)activity.currentSpeed + "");
-//                    Log.i("角度==",(int)activity.currentAngle + "");
-                    // 读取数据 进行图像处理
-//                    long thread_startTime = SystemClock.uptimeMillis();
-//                    if (thread_end_time == 0) {
-//                        thread_end_time = SystemClock.uptimeMillis();
-//                    }
-//                    if ((thread_startTime - thread_end_time) > 500 ){
-//
-//                        thread_end_time = thread_startTime;
-//                    }
-
                 }
 
                 camera.addCallbackBuffer(data);
@@ -508,7 +496,7 @@ public class PushFragment extends Fragment {
      * @return
      */
     public Bitmap BytesToBimap(byte[] data) {
-        YuvImage yuvimage=new YuvImage(data, ImageFormat.NV21, videoWidth,videoHeight, null); //20、20分别是图的宽度与高度
+        YuvImage yuvimage = new YuvImage(data, ImageFormat.NV21, videoWidth,videoHeight, null); //20、20分别是图的宽度与高度
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         yuvimage.compressToJpeg(new Rect(0, 0,videoWidth, videoHeight), 80, baos);//80--JPG图片的质量[0-100],100最高
         byte[] jdata = baos.toByteArray();
@@ -552,21 +540,19 @@ public class PushFragment extends Fragment {
             return;
         }
         runClassifier = false;
-        long startTime = System.currentTimeMillis();
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
         model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
                 Bitmap.Config.ARGB_4444);
         Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
-        model_frame_data.recycle();
-        long endTime = System.currentTimeMillis();
-//        Log.i("时间", String.valueOf((endTime - startTime)));
         // 绘制结果
-        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
+//        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
+//        model_frame_data.recycle();
+//        frame_data.recycle();
         runClassifier = true;
-        showToast(null,unDelMap);
+        showToast(matNumberUtils.getToShow(),model_frame_data);
     }
     /**
-     * 结果绘制
+     * 使用canvas结果绘制
      */
     public Bitmap drawImageText(String showText,Bitmap unDelMap){
         Canvas canvas = new Canvas(unDelMap);
@@ -616,8 +602,8 @@ public class PushFragment extends Fragment {
     private FFmpegFrameGrabber grabber;
     private AndroidFrameConverter converter;
     private Frame frame;
-    private Bitmap bmp;
     private boolean isRestart = true;
+
     public void readRtmpVedio(){
         // 根据id 获取UI界面中的ImageView对象 并把操作结果展示到该对象中
         imageView = root.findViewById(R.id.imageView);
@@ -625,51 +611,33 @@ public class PushFragment extends Fragment {
 //        String vedioUrl = "rtmp://192.168.43.1/live/test";
         String vedioUrl = "rtmp://192.168.101.183:1935/stream/pupils_trace";
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    grabber = new FFmpegFrameGrabber(vedioUrl);
-                    grabber.setImageWidth(1280);
-                    grabber.setImageHeight(720);
-                    //为了加快转bitmap这句一定要写
-                    grabber.setPixelFormat(AV_PIX_FMT_RGBA);
-                    grabber.start(String.valueOf(50*1024));
-                    isRestart = true;
-                    converter = new AndroidFrameConverter();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    textView.setText("服务器中没有该文件!");
+        try {
+            grabber = new FFmpegFrameGrabber(vedioUrl);
+            grabber.setImageWidth(1280);
+            grabber.setImageHeight(720);
+            //为了加快转bitmap这句一定要写
+            grabber.setPixelFormat(AV_PIX_FMT_RGBA);
+            grabber.start(String.valueOf(50*1024));
+            isRestart = true;
+            converter = new AndroidFrameConverter();
+        } catch (IOException e) {
+            e.printStackTrace();
+            textView.setText("服务器中没有该文件!");
+        }
+        startBackgroundThread();
+        while (isRestart) {
+            try {
+                frame = grabber.grabImage();
+                if (frame == null){
+                    continue;
                 }
-                while (isRestart) {
-                    try {
-                        frame = grabber.grabImage();
-                        if (frame == null){
-                            continue;
-                        }
-                        bmp = converter.convert(frame);
-                        currentSpeed = (int)activity.currentSpeed;
-                        currentAngle = (int)activity.currentAngle;
-                        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(bmp,activity,classifier,currentSpeed, currentAngle);
-                        frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
-                                Bitmap.Config.ARGB_8888);
-                        Utils.matToBitmap(matNumberUtils.getIamge(),frame_data);
-                        // 显示处理过后的图像结果
-                        activity.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Log.i("寄哪里了", frame_data.getWidth() + "");
-                                imageView.setImageBitmap(frame_data);
-                                textView.setText(matNumberUtils.getToShow());
-                            }
-                        });
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
+                currentSpeed = (int)activity.currentSpeed;
+                currentAngle = (int)activity.currentAngle;
+                frame_data = converter.convert(frame);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        }).start();
+        }
     }
 
 

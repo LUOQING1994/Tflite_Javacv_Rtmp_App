@@ -29,10 +29,9 @@ import org.bytedeco.javacv.FrameRecorder;
 import org.opencv.android.OpenCVLoader;
 
 /** Main {@code Activity} class for the Camera app. */
-public class CameraActivity extends BaseActivity implements View.OnClickListener{
+public class CameraActivity extends BaseActivity{
   String TAG = "CameraActivity";
   private PowerManager.WakeLock mWakeLock = null;   //  休眠锁
-  Button btn;
 
 
   @SuppressLint("InvalidWakeLockTag")
@@ -109,16 +108,4 @@ public class CameraActivity extends BaseActivity implements View.OnClickListener
     }
   }
 
-  @Override
-  public void onClick(View view) {
-      // 主要用来初始化陀螺仪角度
-      // 当按钮被点击时 更改配置文件中的陀螺仪相关参数
-    if (Integer.parseInt(this.props.getProperty("initi_angle")) == 1){
-      btn.setText("进行检测");
-      this.props.setProperty("initi_angle", String.valueOf(0));
-    } else {
-      btn.setText("停止检测");
-      this.props.setProperty("initi_angle", String.valueOf(1));
-    }
-  }
 }
