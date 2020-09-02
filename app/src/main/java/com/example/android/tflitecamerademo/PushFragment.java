@@ -459,7 +459,7 @@ public class PushFragment extends Fragment {
     MatNumberUtils matNumberUtils;
     /**
      *  开启推流服务
-     *  1，terminal中输入：adb shell   ->   srs -c /data/srs/srs.conf   ->   netstat -nltp
+     *  1，terminal中输入：adb shell   -> su ->  srs -c /data/srs/srs.conf   ->   netstat -nltp
      */
     private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
         @Override
@@ -551,15 +551,18 @@ public class PushFragment extends Fragment {
             showToast("等待推流开始。。。。。。",null);
             return;
         }
+        runClassifier = false;
         long startTime = System.currentTimeMillis();
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
         model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
                 Bitmap.Config.ARGB_4444);
         Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
+        model_frame_data.recycle();
         long endTime = System.currentTimeMillis();
 //        Log.i("时间", String.valueOf((endTime - startTime)));
         // 绘制结果
         Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
+        runClassifier = true;
         showToast(null,unDelMap);
     }
     /**

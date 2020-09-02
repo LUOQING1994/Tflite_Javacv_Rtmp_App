@@ -59,23 +59,24 @@ public class MainCarBehaviorAnalysis {
         Mat tmp_now_image = new Mat();
         Utils.bitmapToMat(bitmap_image, tmp_now_image);
 
-        // 计算速度大于4的持续时间间隔
-        if (tmp_speed > Integer.parseInt(props.getProperty("line_speed_thought")) && speed_start_time_flag) {
+        // start =============================================
+        // 计算速度大于阈值的持续时间间隔 =============================================
+        if (tmp_speed > Integer.parseInt(props.getProperty("hull_speed_thought")) && speed_start_time_flag) {
             speedStartTime = System.currentTimeMillis();
             speed_start_time_flag = false;
             speed_end_time_flag = true;
-        } else if (tmp_speed < Integer.parseInt(props.getProperty("line_speed_thought")) && speed_end_time_flag){
+        } else if (tmp_speed < Integer.parseInt(props.getProperty("hull_speed_thought")) && speed_end_time_flag){
             speedEndTime = System.currentTimeMillis();
             speed_start_time_flag = true;
             speed_end_time_flag = false;
-        } else if (tmp_speed < Integer.parseInt(props.getProperty("line_speed_thought"))){
+        } else if (tmp_speed < Integer.parseInt(props.getProperty("hull_speed_thought"))){
             speedStartTime = System.currentTimeMillis();
             speedEndTime =  System.currentTimeMillis();
         }
-        if (speed_end_time_flag) {    // 凸包一直没变化
+        if (speed_end_time_flag) {    // 速度一直没变化
             speedEndTime =  System.currentTimeMillis();
         }
-        // 当时差超过1分钟时 强制使得midspeedMidTime保持在60
+        // 当时差超过1分钟时 强制使得speedMidTime保持在60
         if (speedMidTime > 58 && speed_end_time_flag){
             speedMidTime = 60; // 暂时使用秒
         } else {
@@ -89,23 +90,38 @@ public class MainCarBehaviorAnalysis {
 
         // OpenCv算法检测
         matNumberUtils = mainCarBehaviorAnalysis(tmp_now_image, speedMidTime, tmp_angle);
-        // 分类模型检测
-        String class_result = CarModelAnalysis(tmp_now_image);
-        // todo     上传数据
-        // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
-        tmp_car_state = matNumberUtils.getNumber();
-        Integer model_result_index = classifier.CAR_CATEGORY;
-        double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
-        if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
-                && model_result_prob > 0.85 && tmp_speed < speedMidTime && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number"))
-                && tmp_angle < 8) {
-            // 说明模型已经识别到了货物 此时 强制设置货车状态为装载
-            tmp_car_state = -1;
-        } else if (last_car_state == 1 && tmp_car_state == -1) { // 上一时刻为倾倒 当前时刻为装载 强制设置成倾倒
-            tmp_car_state = 1;
+
+        // 计算凸包小于5的持续时间间隔 =============================================
+        if (now_image_hull < 10 && hull_start_time_flag) {
+            hullStartTime = System.currentTimeMillis();
+            hull_start_time_flag = false;
+            hull_end_time_flag = true;
+        } else if (now_image_hull > 5 && hull_end_time_flag){
+            hullEndTime = System.currentTimeMillis();
+            hull_start_time_flag = true;
+            hull_end_time_flag = false;
+        } else if (now_image_hull > 10){
+            hullStartTime = System.currentTimeMillis();
+            hullEndTime =  System.currentTimeMillis();
         }
 
-        // 计算相似度的持续时间间隔
+        if (hull_end_time_flag) {    // 凸包一直没变化
+            hullEndTime =  System.currentTimeMillis();
+        }
+
+        // 当时差超过1分钟时 强制使得midHullMidTime保持在60
+        if (midHullMidTime > 58 && hull_end_time_flag){
+            midHullMidTime = 60; // 暂时使用秒
+        } else {
+            long diff = hullEndTime - hullStartTime;
+            long day = diff / (24 * 60 * 60 * 1000);
+            long hour = (diff / (60 * 60 * 1000) - day * 24);
+            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
+            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
+            midHullMidTime = sec;
+        }
+
+        // 计算相似度的持续时间间隔 =============================================
         if (image_sim_number == Integer.parseInt(props.getProperty("image_sim_number")) && count_start_time_flag) {
             diff_startTime = System.currentTimeMillis();
             count_start_time_flag = false;
@@ -137,13 +153,32 @@ public class MainCarBehaviorAnalysis {
             long sec = (diff / 1000 - day * 24 * 60 * 60 - hour * 60 * 60 - min * 60);
             midTime = sec;
         }
+        // end =============================================
+
+        // 分类模型检测
+        String class_result = CarModelAnalysis(tmp_now_image);
+        // todo     上传数据
+        // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
+        tmp_car_state = matNumberUtils.getNumber();
+        Integer model_result_index = classifier.CAR_CATEGORY;
+        double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
+        if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
+                && model_result_prob > 0.85 && tmp_speed < speedMidTime && image_sim_number != Integer.parseInt(props.getProperty("image_sim_number"))
+                && tmp_angle < 8) {
+            // 说明模型已经识别到了货物 此时 强制设置货车状态为装载
+            tmp_car_state = -1;
+        } else if (last_car_state == 1 && tmp_car_state == -1) { // 上一时刻为倾倒 当前时刻为装载 强制设置成倾倒
+            tmp_car_state = 1;
+        }
+
+
         // 判断是否出现 装载变运输 运输变装载的情况
         if (tmp_last_car_state != tmp_car_state) {
             if ((tmp_last_car_state + tmp_car_state) == -1) {
                 tmp_state_change_number = Math.min(tmp_state_change_number + 1, 3);
             }
             if ((tmp_last_car_state + tmp_car_state) == 1) {
-                tmp_dump_change_number = Math.min(tmp_dump_change_number + 1, 2);
+                tmp_dump_change_number = Math.min(tmp_dump_change_number + 1, 3);
             }
         }
         if (tmp_dump_change_number == 0) {
@@ -174,35 +209,7 @@ public class MainCarBehaviorAnalysis {
                 last_car_state = tmp_car_state;
             }
         }
-        // 计算凸包小于5的持续时间间隔
-        if (now_image_hull < 10 && hull_start_time_flag) {
-            hullStartTime = System.currentTimeMillis();
-            hull_start_time_flag = false;
-            hull_end_time_flag = true;
-        } else if (now_image_hull > 5 && hull_end_time_flag){
-            hullEndTime = System.currentTimeMillis();
-            hull_start_time_flag = true;
-            hull_end_time_flag = false;
-        } else if (now_image_hull > 10){
-            hullStartTime = System.currentTimeMillis();
-            hullEndTime =  System.currentTimeMillis();
-        }
 
-        if (hull_end_time_flag) {    // 凸包一直没变化
-            hullEndTime =  System.currentTimeMillis();
-        }
-
-        // 当时差超过1分钟时 强制使得midHullMidTime保持在60
-        if (midHullMidTime > 58 && hull_end_time_flag){
-            midHullMidTime = 60; // 暂时使用秒
-        } else {
-            long diff = hullEndTime - hullStartTime;
-            long day = diff / (24 * 60 * 60 * 1000);
-            long hour = (diff / (60 * 60 * 1000) - day * 24);
-            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            midHullMidTime = sec;
-        }
         // 当凸包为0的状态持续60秒 则强制设置为运输
         if (midHullMidTime > 59 && tmp_angle <Integer.parseInt(props.getProperty("hull_angle_through"))
                 && image_sim_number == Integer.parseInt(props.getProperty("image_sim_number")) ){
