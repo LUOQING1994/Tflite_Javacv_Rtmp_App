@@ -54,9 +54,11 @@ public class MainCarBehaviorAnalysis {
     private int current_speed = 0;  // 当前速度
     public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys,
                                               ImageClassifier classifiers, int tmp_speed, int tmp_angle) {
-        activity = activitys;
-        props = activity.props;
-        classifier = classifiers;
+        if (activitys == null || props == null || classifier == null){
+            activity = activitys;
+            props = activity.props;
+            classifier = classifiers;
+        }
         current_speed = tmp_speed;
         Mat tmp_now_image = new Mat();
         Utils.bitmapToMat(bitmap_image, tmp_now_image);
@@ -72,10 +74,10 @@ public class MainCarBehaviorAnalysis {
 
         Integer model_result_index = classifier.CAR_CATEGORY;
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
-        Log.i("opencv结果", "==========================");
-        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
-        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
-        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
+//        Log.i("opencv结果", "==========================");
+//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
+//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
+//        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && 1 > model_result_prob && model_result_prob > 0.85
@@ -122,8 +124,8 @@ public class MainCarBehaviorAnalysis {
                 tmp_state_change_number = 0;
             }
         }
-        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
-        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
+//        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
+//        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
 
         //    ==========  利用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输     ===========================
         if (simMidTime > Integer.parseInt(props.getProperty("sim_time_through"))
@@ -133,13 +135,13 @@ public class MainCarBehaviorAnalysis {
             tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
         }
-        Log.i("第三次结果", tmp_car_state + " ： " + last_car_state + " : " + tmp_last_car_state);
+//        Log.i("第三次结果", tmp_car_state + " ： " + last_car_state + " : " + tmp_last_car_state);
         //   ===========  更新last_car_state的状态     ======================
         if( tmp_car_state != tmp_last_car_state){
             last_car_state = tmp_last_car_state;
             tmp_last_car_state = tmp_car_state;
         }
-        Log.i("第四次结果", "tmp_car_state :" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " tmp_state_change_number: " + tmp_state_change_number);
+//        Log.i("第四次结果", "tmp_car_state :" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " tmp_state_change_number: " + tmp_state_change_number);
 
 
         textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
@@ -150,7 +152,7 @@ public class MainCarBehaviorAnalysis {
         matNumberUtils.setToShow(textToShow);
         matNumberUtils.setIamge(tmp_now_image);
         getBaseInfoDta();  // 获取需要上传服务器的数据
-
+        tmp_now_image.release();
         return matNumberUtils;
     }
 
@@ -195,7 +197,7 @@ public class MainCarBehaviorAnalysis {
         } else {
             timeF_switch_bg = timeF_switch_bg - 1;
         }
-
+        tmp_cut_image.release();
         return matNumberUtils;
     }
 

@@ -455,7 +455,7 @@ public class PushFragment extends Fragment {
         mCamera.autoFocus(myAutoFocusCallback);
         mPreviewRunning = true;
     }
-    private Bitmap frame_data;
+    byte[] camera_data;
     MatNumberUtils matNumberUtils;
     /**
      *  开启推流服务
@@ -478,7 +478,7 @@ public class PushFragment extends Fragment {
             } else {
                 if (isRTSPPublisherRunning || isPushingRtmp || isRecording || isPushingRtsp) {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
-                    frame_data = BytesToBimap(data);
+                    camera_data = data;
                     currentSpeed = (int)activity.currentSpeed;
                     currentAngle = (int)activity.currentAngle;
                 }
@@ -508,7 +508,6 @@ public class PushFragment extends Fragment {
     private Handler backgroundHandler;
     private final Object lock = new Object();
     private boolean runClassifier = false;
-    private Bitmap model_frame_data;
     private int currentSpeed;
     private int currentAngle;
     /** Starts a background thread and its {@link Handler}. */
@@ -535,21 +534,22 @@ public class PushFragment extends Fragment {
                 }
             };
     private void classifyFrame() {
-        if (classifier == null || getActivity() == null || !isStartPull || frame_data == null) {
+        if (classifier == null || getActivity() == null || !isStartPull || camera_data == null) {
             showToast("等待推流开始。。。。。。",null);
             return;
         }
         runClassifier = false;
+        Bitmap frame_data = BytesToBimap(camera_data);
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
-        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
-                Bitmap.Config.ARGB_4444);
-        Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
+//        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+//                Bitmap.Config.ARGB_4444);
+//        Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
         // 绘制结果
 //        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
 //        model_frame_data.recycle();
-//        frame_data.recycle();
+        showToast(matNumberUtils.getToShow(),null);
+        frame_data.recycle();
         runClassifier = true;
-        showToast(matNumberUtils.getToShow(),model_frame_data);
     }
     /**
      * 使用canvas结果绘制
@@ -633,7 +633,7 @@ public class PushFragment extends Fragment {
                 }
                 currentSpeed = (int)activity.currentSpeed;
                 currentAngle = (int)activity.currentAngle;
-                frame_data = converter.convert(frame);
+//                frame_data = converter.convert(frame);
             } catch (Exception e) {
                 e.printStackTrace();
             }

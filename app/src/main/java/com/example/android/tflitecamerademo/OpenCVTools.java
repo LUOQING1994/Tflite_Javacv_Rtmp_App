@@ -135,6 +135,8 @@ public class OpenCVTools {
                 if (tmp_sim_degree > 0.7) { // 相识度阈值设置低一点 是因为车辆在运行过程中 画面会抖动
                     result = result + 1;
                 }
+                cut_flag1.release();
+                cut_flag2.release();
             }
         }
         return result;
@@ -327,6 +329,9 @@ public class OpenCVTools {
         }
         matNumberUtils.setIamge(orgin_image);
         matNumberUtils.setNumber(number);
+        gary_now_flag.release();
+        blur_flag.release();
+        hierarchy.release();
         return matNumberUtils;
     }
 }
