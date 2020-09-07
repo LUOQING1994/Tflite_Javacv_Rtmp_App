@@ -15,6 +15,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
+import android.media.Image;
 import android.os.Bundle;
 import android.app.Fragment;
 import android.os.Handler;
@@ -30,7 +31,6 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -43,10 +43,18 @@ import com.voiceengine.NTAudioRecordV2Callback;
 import org.bytedeco.javacv.AndroidFrameConverter;
 import org.bytedeco.javacv.Frame;
 import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
+import org.opencv.imgcodecs.Imgcodecs;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -300,7 +308,6 @@ public class PushFragment extends Fragment {
                 } else {
                     currentCameraType = BACK;
                 }
-
                 if (mCamera == null) {
                     openCamera(currentCameraType);
                 }
@@ -467,7 +474,7 @@ public class PushFragment extends Fragment {
             frameCount++;
             if (frameCount % 3000 == 0) {
                 Log.i("OnPre", "gc+");
-                System.gc();
+                Runtime.getRuntime().gc();
                 Log.i("OnPre", "gc-");
             }
             if (data == null) {
@@ -502,6 +509,37 @@ public class PushFragment extends Fragment {
         byte[] jdata = baos.toByteArray();
         return BitmapFactory.decodeByteArray(jdata, 0, jdata.length);
     }
+    //Byte转Bitmap
+    public Bitmap ByteArray2Bitmap(byte[] data) {
+        Mat mat = new Mat(720,1280, CvType.CV_8UC1);
+        mat.put(0,0,data);
+        Bitmap tmp_model_bitmap = Bitmap.createBitmap(mat.width(), mat.height(),
+                Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(mat,tmp_model_bitmap);
+        mat.release();
+        return tmp_model_bitmap;
+    }
+    public Bitmap rawByteArray2RGBABitmap2(byte[] data, int width, int height) {
+        int frameSize = width * height;
+        int[] rgba = new int[frameSize];
+        for (int i = 0; i < height; i++)
+            for (int j = 0; j < width; j++) {
+                int y = (0xff & ((int) data[i * width + j]));
+                int u = (0xff & ((int) data[frameSize + (i >> 1) * width + (j & ~1) + 0]));
+                int v = (0xff & ((int) data[frameSize + (i >> 1) * width + (j & ~1) + 1]));
+                y = y < 16 ? 16 : y;
+                int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
+                int g = Math.round(1.164f * (y - 16) - 0.813f * (v - 128) - 0.391f * (u - 128));
+                int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));
+                r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                b = b < 0 ? 0 : (b > 255 ? 255 : b);
+                rgba[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
+            }
+        Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bmp.setPixels(rgba, 0 , width, 0, 0, width, height);
+        return bmp;
+    }
 
     private HandlerThread backgroundThread;
     private static final String HANDLE_THREAD_NAME = "CameraBackground";
@@ -534,21 +572,21 @@ public class PushFragment extends Fragment {
                 }
             };
     private void classifyFrame() {
-        if (classifier == null || getActivity() == null || !isStartPull || camera_data == null) {
+        if (classifier == null || getActivity() == null || camera_data == null) {
             showToast("等待推流开始。。。。。。",null);
             return;
         }
         runClassifier = false;
-        Bitmap frame_data = BytesToBimap(camera_data);
+        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data, 1280,720);
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
 //        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
 //                Bitmap.Config.ARGB_4444);
 //        Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
-        // 绘制结果
+//         绘制结果
 //        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
 //        model_frame_data.recycle();
-        showToast(matNumberUtils.getToShow(),null);
-        frame_data.recycle();
+        showToast(matNumberUtils.getToShow(),frame_data);
+//        showToast("开始了",frame_data);
         runClassifier = true;
     }
     /**
@@ -1133,7 +1171,6 @@ public class PushFragment extends Fragment {
 
         return max_kbit_rate;
     }
-    static boolean isStartPull = false;  // 是否可以开始对数据进行处理
     class EventHandeV2 implements NTSmartEventCallbackV2 {
         @Override
         public void onNTSmartEventCallbackV2(long handle, int id, long param1, long param2, String param3, String param4, Object param5) {
@@ -1154,11 +1191,9 @@ public class PushFragment extends Fragment {
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_CONNECTED:
                     publisher_event = "连接成功..";
-                    isStartPull = true;
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_DISCONNECTED:
                     publisher_event = "连接断开..";
-                    isStartPull = false;
                     break;
                 case NTSmartEventID.EVENT_DANIULIVE_ERC_PUBLISHER_STOP:
                     publisher_event = "关闭..";

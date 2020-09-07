@@ -8,6 +8,7 @@ import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.Console;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -196,8 +197,8 @@ public class MainCarBehaviorAnalysis {
             tmp_last_image = tmp_cut_image;
         } else {
             timeF_switch_bg = timeF_switch_bg - 1;
+            tmp_cut_image.release();
         }
-        tmp_cut_image.release();
         return matNumberUtils;
     }
 
