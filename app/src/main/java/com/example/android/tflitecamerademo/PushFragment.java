@@ -50,6 +50,9 @@ import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -511,7 +514,7 @@ public class PushFragment extends Fragment {
     }
     //Byte转Bitmap
     public Bitmap ByteArray2Bitmap(byte[] data) {
-        Mat mat = new Mat(720,1280, CvType.CV_8UC1);
+        Mat mat = new Mat(videoHeight,videoWidth, CvType.CV_8UC1);
         mat.put(0,0,data);
         Bitmap tmp_model_bitmap = Bitmap.createBitmap(mat.width(), mat.height(),
                 Bitmap.Config.ARGB_8888);
@@ -577,7 +580,7 @@ public class PushFragment extends Fragment {
             return;
         }
         runClassifier = false;
-        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data, 1280,720);
+        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data, videoWidth,videoHeight);
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
 //        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
 //                Bitmap.Config.ARGB_4444);
@@ -588,6 +591,7 @@ public class PushFragment extends Fragment {
         showToast(matNumberUtils.getToShow(),frame_data);
 //        showToast("开始了",frame_data);
         runClassifier = true;
+//        frame_data.recycle();
     }
     /**
      * 使用canvas结果绘制
@@ -651,8 +655,8 @@ public class PushFragment extends Fragment {
 
         try {
             grabber = new FFmpegFrameGrabber(vedioUrl);
-            grabber.setImageWidth(1280);
-            grabber.setImageHeight(720);
+            grabber.setImageWidth(videoWidth);
+            grabber.setImageHeight(videoHeight);
             //为了加快转bitmap这句一定要写
             grabber.setPixelFormat(AV_PIX_FMT_RGBA);
             grabber.start(String.valueOf(50*1024));

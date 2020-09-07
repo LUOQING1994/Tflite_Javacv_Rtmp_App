@@ -9,6 +9,10 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.Console;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -53,6 +57,7 @@ public class MainCarBehaviorAnalysis {
     private boolean speed_start_time_flag = true;
     private boolean speed_end_time_flag = true;
     private int current_speed = 0;  // 当前速度
+    private int current_angle = 0;  // 当前角度
     public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys,
                                               ImageClassifier classifiers, int tmp_speed, int tmp_angle) {
         if (activitys == null || props == null || classifier == null){
@@ -61,6 +66,7 @@ public class MainCarBehaviorAnalysis {
             classifier = classifiers;
         }
         current_speed = tmp_speed;
+        current_angle = tmp_angle;
         Mat tmp_now_image = new Mat();
         Utils.bitmapToMat(bitmap_image, tmp_now_image);
 
@@ -69,8 +75,6 @@ public class MainCarBehaviorAnalysis {
         tmp_car_state = matNumberUtils.getNumber();
         // 分类模型检测
         String class_result = CarModelAnalysis(tmp_now_image);
-        // todo     上传数据
-
         // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
 
         Integer model_result_index = classifier.CAR_CATEGORY;
@@ -144,6 +148,10 @@ public class MainCarBehaviorAnalysis {
         }
 //        Log.i("第四次结果", "tmp_car_state :" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " tmp_state_change_number: " + tmp_state_change_number);
 
+        // 记录车辆当前状态为运输态的持续时间
+        countTransportTime();
+        // 根据当前车辆状态 上传图片数据
+        imageOptionFrame(bitmap_image);
 
         textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
                 "凸包数量: " + now_image_hull + " \n " +
@@ -221,6 +229,155 @@ public class MainCarBehaviorAnalysis {
         tmp_model_bitmap.recycle();
         tmp_model_image.release();
         return model_result;
+    }
+
+
+    /**
+     *  用于处理图片上传功能
+     */
+    private long stateStartTime = 0;  // 车辆状态为0的时间
+    private long stateEndTime = 0;  // 车辆状态为0的时间
+    private long stateMidTime = 0;  // 车辆状态为0的时间
+    private boolean state_start_time_flag = true;
+    private boolean state_end_time_flag = false;
+    private long unCloseStartTime = 0;  // 车辆未遮蔽的时间
+    private long unCloseEndTime = 0;  // 车辆未遮蔽的时间
+    private long unCloseMidTime = 0;  // 车辆未遮蔽的时间
+    private boolean unClose_start_time_flag = true;
+    private boolean unClose_end_time_flag = false;
+    private boolean is_upOneFlag = false; // 是否可以上传倾倒或者装载的图片
+
+    public void imageOptionFrame(Bitmap frame_data){
+        Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
+        if ( stateMidTime < Integer.parseInt(props.getProperty("state_time_through")) ){
+            if ( image_sim_number != Integer.parseInt(props.getProperty("image_sim_number")) ){
+                if( tmp_car_state == -1 ){
+                    filesOption("/sdcard/android.example.com.tflitecamerademo/up_load/", Integer.parseInt(props.getProperty("up_image_max_number")),frame_data);
+                    is_upOneFlag = true;
+                } else if ( tmp_car_state == 1){
+                    filesOption("/sdcard/android.example.com.tflitecamerademo/up_dump/",  Integer.parseInt(props.getProperty("up_image_max_number")), frame_data);
+                    is_upOneFlag = true;
+                }
+            }
+
+        } else {
+            if( is_upOneFlag ){
+                Log.i("上传图片", "开始上传图片。。。。。。。。。。。");
+                is_upOneFlag = false;
+            }
+            // 开始对幕布是否关闭进行判定
+            countUnCloseTime(); // 统计幕布未遮蔽的时间 若大于设定的时间阈值 则开始上传图片
+            //  未关闭时间较长、角度小于10度、速度持续时间大于10秒（为了测试暂时取消速度的条件）
+            if (unCloseMidTime > Integer.parseInt(props.getProperty("unClose_max_time")) && current_angle < 10
+//                    && current_speed > 10
+            )
+            {
+                Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
+                filesOption("/sdcard/android.example.com.tflitecamerademo/un_close/",  Integer.parseInt(props.getProperty("up_unClose_max_number")), frame_data);
+            }
+        }
+    }
+    /**
+     *  计算运输的持续时间
+     */
+    public void countTransportTime(){
+        if (tmp_car_state == 0 && state_start_time_flag) {
+            stateStartTime = System.currentTimeMillis();
+            state_start_time_flag = false;
+            state_end_time_flag = true;
+        } else if (tmp_car_state != 0 && state_end_time_flag){
+            stateEndTime = System.currentTimeMillis();
+            state_start_time_flag = true;
+            state_end_time_flag = false;
+        } else if (tmp_car_state != 0){
+            stateStartTime = System.currentTimeMillis();
+            stateEndTime =  System.currentTimeMillis();
+        }
+
+        if (state_end_time_flag) {    // 运输状态一直没变化
+            stateEndTime =  System.currentTimeMillis();
+        }
+
+        // 当时差超过1分钟时 强制使得stateMidTime保持在60
+        if (stateMidTime > 58 && state_end_time_flag){
+            stateMidTime = 60; // 暂时使用秒
+        } else {
+            long diff = stateEndTime - stateStartTime;
+            long day = diff / (24 * 60 * 60 * 1000);
+            long hour = (diff / (60 * 60 * 1000) - day * 24);
+            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
+            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
+            stateMidTime = sec;
+        }
+    }
+    /**
+     *  计算幕布未关闭的持续时间
+     */
+    public void countUnCloseTime(){
+        int tmp_unClose_flag;
+        if ( classifier.CAR_CATEGORY != 5 && classifier.CAR_CATEGORY != 6) {
+            tmp_unClose_flag = 1;
+        } else {
+            tmp_unClose_flag = 0;
+        }
+        if ( tmp_unClose_flag == 1 && unClose_start_time_flag) {
+            unCloseStartTime = System.currentTimeMillis();
+            unClose_start_time_flag = false;
+            unClose_end_time_flag = true;
+        } else if ( tmp_unClose_flag == 0 && unClose_end_time_flag){
+            unCloseEndTime = System.currentTimeMillis();
+            unClose_start_time_flag = true;
+            unClose_end_time_flag = false;
+        } else if (tmp_unClose_flag == 0){
+            unCloseStartTime = System.currentTimeMillis();
+            unCloseEndTime =  System.currentTimeMillis();
+        }
+
+        if (unClose_end_time_flag) {    // 运输状态一直没变化
+            unCloseEndTime =  System.currentTimeMillis();
+        }
+
+        // 当时差超过1分钟时 强制使得unCloseMidTime保持在60
+        if (unCloseMidTime > 58 && unClose_end_time_flag){
+            unCloseMidTime = 60; // 暂时使用秒
+        } else {
+            long diff = unCloseEndTime - unCloseStartTime;
+            long day = diff / (24 * 60 * 60 * 1000);
+            long hour = (diff / (60 * 60 * 1000) - day * 24);
+            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
+            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
+            unCloseMidTime = sec;
+        }
+        Log.i("统计未遮蔽时间", "tmp_unClose_flag : " + tmp_unClose_flag + ": " + classifier.CAR_CATEGORY  + " : " + classifier.CAR_CATEGORY + ": " + classifier.CAR_CATEGORY_PROBABILITY);
+        Log.i("统计未遮蔽时间", "unClose_end_time_flag : " + unClose_end_time_flag );
+        Log.i("统计未遮蔽时间", "unClose_start_time_flag: " + unClose_start_time_flag );
+    }
+    /**
+     *  判断文件夹中文件数 并存储文件
+     */
+    public void filesOption( String path, int maxFileNumber, Bitmap frame_data){
+        Log.d("photoPath -->> ", "存储开始======================   ");
+        File dir1 = new File(path);
+        if (!dir1.exists()) {
+            dir1.mkdirs();
+        }
+        Log.d("photoPath -->> ", "存储开始======================   " + dir1.exists());
+        if(dir1.listFiles().length > maxFileNumber){
+            File photoFile = new File(dir1.listFiles()[0].getPath());
+            Log.d("photoPath -->> ", photoFile.getPath());
+            photoFile.delete();
+        }
+        try {
+            String fileName = System.currentTimeMillis() + ".jpg";
+            FileOutputStream fos = new FileOutputStream(path + fileName);
+            frame_data.compress(Bitmap.CompressFormat.JPEG, 80, fos);
+            fos.flush();
+            fos.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
