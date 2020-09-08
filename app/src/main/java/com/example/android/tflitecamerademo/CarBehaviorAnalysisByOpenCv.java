@@ -28,6 +28,7 @@ public class CarBehaviorAnalysisByOpenCv {
         int tmp_car_state;
         if ((now_angle > hull_angle_through)){ // 角度大于15 则有可能出现倾倒行为 去除凸包 防止夜间倾倒
             if ((speed_time < speed_time_through) && image_sim_time < 30) { // 相似度持续时间不大于30时表示有可能出现运输单大于59时就一定视为运输
+                // 倾倒时 有时候会有速度产生 所以 速度阈值需要大一点
                 tmp_car_state = 1;    // 视为倾倒
             } else {
                 tmp_car_state = 0;    // 视为运输

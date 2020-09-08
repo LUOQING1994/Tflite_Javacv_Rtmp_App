@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,10 +17,12 @@ import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.media.Image;
+import android.net.Uri;
 import android.os.Bundle;
 import android.app.Fragment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v13.app.FragmentCompat;
@@ -486,13 +489,13 @@ public class PushFragment extends Fragment {
                 int bufferSize = (((size.width | 0x1f) + 1) * size.height * ImageFormat.getBitsPerPixel(params.getPreviewFormat())) / 8;
                 camera.addCallbackBuffer(new byte[bufferSize]);
             } else {
+//                Log.i("数据转换", "isPushingRtmp:" + isRTSPPublisherRunning + " isPushingRtmp:" + isPushingRtmp+ " isRecording:" + isRecording+ " isPushingRtsp:" + isPushingRtsp);
                 if (isRTSPPublisherRunning || isPushingRtmp || isRecording || isPushingRtsp) {
                     libPublisher.SmartPublisherOnCaptureVideoData(publisherHandle, data, data.length, currentCameraType, currentOrigentation);
-                    camera_data = data;
                     currentSpeed = (int)activity.currentSpeed;
                     currentAngle = (int)activity.currentAngle;
                 }
-
+                camera_data = data;
                 camera.addCallbackBuffer(data);
             }
         }
@@ -510,6 +513,14 @@ public class PushFragment extends Fragment {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         yuvimage.compressToJpeg(new Rect(0, 0,videoWidth, videoHeight), 80, baos);//80--JPG图片的质量[0-100],100最高
         byte[] jdata = baos.toByteArray();
+        try {
+            baos.flush();
+            baos.close();
+            yuvimage = null;
+            System.gc();
+        } catch (Exception e){
+
+        }
         return BitmapFactory.decodeByteArray(jdata, 0, jdata.length);
     }
     //Byte转Bitmap
@@ -580,7 +591,8 @@ public class PushFragment extends Fragment {
             return;
         }
         runClassifier = false;
-        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data, videoWidth,videoHeight);
+        Bitmap frame_data = BytesToBimap(camera_data);
+//        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data, videoWidth,videoHeight);
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
 //        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
 //                Bitmap.Config.ARGB_4444);

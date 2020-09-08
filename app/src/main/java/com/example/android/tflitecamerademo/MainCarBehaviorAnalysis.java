@@ -3,16 +3,19 @@ package com.example.android.tflitecamerademo;
 import android.graphics.Bitmap;
 import android.util.Log;
 
+import com.alibaba.fastjson.JSON;
+
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
-import java.io.Console;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -86,7 +89,8 @@ public class MainCarBehaviorAnalysis {
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && 1 > model_result_prob && model_result_prob > 0.85
-                && speedMidTime < 10 && now_image_hull < 10) {
+                && speedMidTime < 10 && hullMidTime > 10
+                && image_sim_number < Integer.parseInt(props.getProperty("image_sim_number"))) {
             // 进入该判断语句后 说明当前启用了模型的检测结果
             // 所以 需要避免使用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输
             simMidTime = 0;
@@ -113,12 +117,12 @@ public class MainCarBehaviorAnalysis {
             tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
         } else {
-            // 判断是否出现 装载变运输 运输变装载的情况
-            if ((tmp_car_load + tmp_car_state) == -1){
-                tmp_state_change_number = Math.min(tmp_state_change_number + 1, 3);
+            // 判断是否出现 装载变运输 运输变装载的情况 当前一个模型类别为篷布时 说明此刻是倾倒前的打开篷布操作 不可视为装载
+            if ((tmp_car_load + tmp_car_state) == -1 && last_car_category != 6){
+                tmp_state_change_number = Math.min(tmp_state_change_number + 1, 4);
             }
             if (tmp_car_state != 1) {
-                if (tmp_state_change_number == 3){
+                if (tmp_state_change_number == 4){
                     tmp_car_state = -1;   // 运输转装载 装载转运输次数达到3次 强制设置为装载
                 } else {
                     tmp_car_load = tmp_car_state;
@@ -160,7 +164,6 @@ public class MainCarBehaviorAnalysis {
                 "当前速度：" + tmp_speed + " \n " + class_result;
         matNumberUtils.setToShow(textToShow);
         matNumberUtils.setIamge(tmp_now_image);
-        getBaseInfoDta();  // 获取需要上传服务器的数据
         tmp_now_image.release();
         return matNumberUtils;
     }
@@ -246,6 +249,8 @@ public class MainCarBehaviorAnalysis {
     private boolean unClose_start_time_flag = true;
     private boolean unClose_end_time_flag = false;
     private boolean is_upOneFlag = false; // 是否可以上传倾倒或者装载的图片
+    private boolean is_upUnCloseFlag = false; // 是否可以上传倾未覆盖的图片
+    private int unCloseNumber = 0; // 记录未覆盖的图片数量
 
     public void imageOptionFrame(Bitmap frame_data){
         Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
@@ -263,17 +268,28 @@ public class MainCarBehaviorAnalysis {
         } else {
             if( is_upOneFlag ){
                 Log.i("上传图片", "开始上传图片。。。。。。。。。。。");
+                // 当获得服务端上传成功信号时 删除本地图片和txt文件
+                // TODO
                 is_upOneFlag = false;
+                is_upUnCloseFlag = false;
             }
             // 开始对幕布是否关闭进行判定
             countUnCloseTime(); // 统计幕布未遮蔽的时间 若大于设定的时间阈值 则开始上传图片
             //  未关闭时间较长、角度小于10度、速度持续时间大于10秒（为了测试暂时取消速度的条件）
-            if (unCloseMidTime > Integer.parseInt(props.getProperty("unClose_max_time")) && current_angle < 10
+            if (unCloseMidTime > Integer.parseInt(props.getProperty("unClose_max_time"))
+                    && current_angle < 10 && !is_upUnCloseFlag
 //                    && current_speed > 10
             )
             {
-                Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
-                filesOption("/sdcard/android.example.com.tflitecamerademo/un_close/",  Integer.parseInt(props.getProperty("up_unClose_max_number")), frame_data);
+                unCloseNumber = Math.max(unCloseNumber++, Integer.parseInt(props.getProperty("up_unClose_max_number")));
+                if(unCloseNumber >= Integer.parseInt(props.getProperty("up_unClose_max_number"))){
+                    Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
+                    // 上传完毕后 不再进入该循环
+                    is_upUnCloseFlag = true;
+                } else {
+                    Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
+                    filesOption("/sdcard/android.example.com.tflitecamerademo/un_close/",  Integer.parseInt(props.getProperty("up_unClose_max_number")), frame_data);
+                }
             }
         }
     }
@@ -361,15 +377,15 @@ public class MainCarBehaviorAnalysis {
         if (!dir1.exists()) {
             dir1.mkdirs();
         }
-        Log.d("photoPath -->> ", "存储开始======================   " + dir1.exists());
-        if(dir1.listFiles().length > maxFileNumber){
-            File photoFile = new File(dir1.listFiles()[0].getPath());
-            Log.d("photoPath -->> ", photoFile.getPath());
-            photoFile.delete();
+        //  当存储的图片数达到阈值时 不再存储
+        if(dir1.listFiles().length >= maxFileNumber){
+            return;
         }
         try {
             String fileName = System.currentTimeMillis() + ".jpg";
             FileOutputStream fos = new FileOutputStream(path + fileName);
+            //  保存当前图片的路径
+            props.setProperty("current_image_url",path + fileName);
             frame_data.compress(Bitmap.CompressFormat.JPEG, 80, fos);
             fos.flush();
             fos.close();
@@ -377,6 +393,29 @@ public class MainCarBehaviorAnalysis {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+        // 获取需要上传服务器的数据
+        getBaseInfoDta();
+        // 保存props中的数据到本地txt文件中
+        try {
+            File file = new File(dir1 + "/data.txt");
+            if(!file.exists()) {
+                file.createNewFile(); // 创建新文件,有同名的文件的话直接覆盖
+            }
+            FileOutputStream fos = new FileOutputStream(file,true);
+            OutputStreamWriter osw = new OutputStreamWriter(fos);
+            BufferedWriter bw = new BufferedWriter(osw);
+            String propsString = JSON.toJSONString(props);
+            bw.write(propsString);
+            bw.newLine();
+            bw.flush();
+            bw.close();
+            osw.close();
+            fos.close();
+        }catch (FileNotFoundException e1) {
+            e1.printStackTrace();
+        } catch (IOException e2) {
+            e2.printStackTrace();
         }
     }
 

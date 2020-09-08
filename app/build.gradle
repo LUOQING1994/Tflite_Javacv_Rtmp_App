@@ -112,7 +112,7 @@ dependencies {
     implementation 'com.android.support:support-v13:26.1.0'
     implementation 'org.tensorflow:tensorflow-lite:+'
     implementation project(path: ':openCVLibrary341')
-
+    implementation 'com.alibaba:fastjson:1.1.70.android'
     implementation files("libs/BaiduLBS_Android.jar")
     implementation files("libs/smartavengine.jar")
 }
