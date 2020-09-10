@@ -2,6 +2,7 @@ package com.example.android.tflitecamerademo;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -16,8 +17,6 @@ import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Bundle;
-import android.app.Fragment;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -57,10 +56,10 @@ import static org.bytedeco.javacpp.avutil.AV_PIX_FMT_RGBA;
 
 /**
  * A simple {@link Fragment} subclass.
- * Use the {@link PushFragment#newInstance} factory method to
+ * Use the {@link PushLocalFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class PushFragment extends Fragment {
+public class PushLocalFragment extends Fragment {
 
     private static final String TAG = "PushFragment";
 
@@ -180,7 +179,7 @@ public class PushFragment extends Fragment {
         System.loadLibrary("SmartPublisher");
     }
 
-    public PushFragment() {
+    public PushLocalFragment() {
         // Required empty public constructor
     }
 
@@ -190,8 +189,8 @@ public class PushFragment extends Fragment {
      *
      * @return A new instance of fragment PushFragment.
      */
-    public static PushFragment newInstance() {
-        return new PushFragment();
+    public static PushLocalFragment newInstance() {
+        return new PushLocalFragment();
     }
 
     @Override
@@ -277,8 +276,9 @@ public class PushFragment extends Fragment {
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
         if (!checkedPermissions && !allPermissionsGranted()) {
-            FragmentCompat.requestPermissions(PushFragment.this, getRequiredPermissions(), PERMISSIONS_REQUEST_CODE);
+            FragmentCompat.requestPermissions(PushLocalFragment.this, getRequiredPermissions(), PERMISSIONS_REQUEST_CODE);
         } else {
             checkedPermissions = true;
             hasP();
@@ -393,6 +393,7 @@ public class PushFragment extends Fragment {
         try {
             Thread.sleep(1000);
             startPush();
+            readLocalVedioByThread();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -572,21 +573,19 @@ public class PushFragment extends Fragment {
                 }
             };
     private void classifyFrame() {
-        if (classifier == null || getActivity() == null || camera_data == null) {
+        if (classifier == null || getActivity() == null || bmp == null) {
             showToast("等待推流开始。。。。。。",null);
             return;
         }
         runClassifier = false;
-        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data);
-        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
-//        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
+        currentSpeed = (int)activity.currentSpeed;
+        currentAngle = (int)activity.currentAngle;
+        matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(bmp,activity,classifier, currentSpeed, currentAngle);
+//        Bitmap model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
 //                Bitmap.Config.ARGB_4444);
 //        Utils.matToBitmap(matNumberUtils.getIamge(),model_frame_data);
-//         绘制结果
-//        Bitmap unDelMap = drawImageText(matNumberUtils.getToShow(),model_frame_data);
 //        model_frame_data.recycle();
-        showToast(matNumberUtils.getToShow(),frame_data);
-//        showToast("开始了",frame_data);
+        showToast(matNumberUtils.getToShow(),bmp);
         runClassifier = true;
 //        frame_data.recycle();
     }
@@ -641,43 +640,41 @@ public class PushFragment extends Fragment {
     private FFmpegFrameGrabber grabber;
     private AndroidFrameConverter converter;
     private Frame frame;
-    private boolean isRestart = true;
 
-    public void readRtmpVedio(){
-        // 根据id 获取UI界面中的ImageView对象 并把操作结果展示到该对象中
-        imageView = root.findViewById(R.id.imageView);
-//        String vedioUrl = "rtmp://192.168.42.174:1935/live/test";
-//        String vedioUrl = "rtmp://192.168.43.1/live/test";
-        String vedioUrl = "rtmp://192.168.101.183:1935/stream/pupils_trace";
-
+    Bitmap bmp = null;
+    public void readLocalVedioByThread() {
+        String vedioUrl = "long_lodaing_1_data.mp4";
         try {
-            grabber = new FFmpegFrameGrabber(vedioUrl);
-            grabber.setImageWidth(videoWidth);
-            grabber.setImageHeight(videoHeight);
+//            String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
+            String file = "sdcard" + "/" + vedioUrl;
+            Log.i("file", file);
+            grabber = new FFmpegFrameGrabber(file);
+            grabber.setImageWidth(1280);
+            grabber.setImageHeight(720);
             //为了加快转bitmap这句一定要写
             grabber.setPixelFormat(AV_PIX_FMT_RGBA);
-//            grabber.start(String.valueOf(50*1024));
             grabber.start();
-            isRestart = true;
             converter = new AndroidFrameConverter();
+            frame = grabber.grabImage();
+
         } catch (IOException e) {
             e.printStackTrace();
-            textView.setText("服务器中没有该文件!");
+            textView.setText("本地没有该文件!");
         }
-        startBackgroundThread();
-        while (isRestart) {
-            try {
-                frame = grabber.grabImage();
-                if (frame == null){
-                    continue;
+        Log.i("开始啦", "============");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (frame!= null) {
+                    try {
+                        frame = grabber.grabImage();
+                        bmp = converter.convert(frame);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
-                currentSpeed = (int)activity.currentSpeed;
-                currentAngle = (int)activity.currentAngle;
-//                frame_data = converter.convert(frame);
-            } catch (Exception e) {
-                e.printStackTrace();
             }
-        }
+        }).start();
     }
 
     private void SetCameraFPS(Camera.Parameters parameters) {
@@ -716,9 +713,9 @@ public class PushFragment extends Fragment {
         }
     }
 
-    private void setCameraDisplayOrientation(Activity activity, int cameraId, android.hardware.Camera camera) {
-        android.hardware.Camera.CameraInfo info = new android.hardware.Camera.CameraInfo();
-        android.hardware.Camera.getCameraInfo(cameraId, info);
+    private void setCameraDisplayOrientation(Activity activity, int cameraId, Camera camera) {
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(cameraId, info);
         int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
         int degrees = 0;
         switch (rotation) {

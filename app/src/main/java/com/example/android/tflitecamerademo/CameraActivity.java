@@ -20,12 +20,7 @@ import android.content.Context;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.util.Log;
-import android.view.View;
-import android.widget.Button;
 
-import org.bytedeco.javacv.FFmpegFrameRecorder;
-import org.bytedeco.javacv.FrameGrabber;
-import org.bytedeco.javacv.FrameRecorder;
 import org.opencv.android.OpenCVLoader;
 
 /** Main {@code Activity} class for the Camera app. */
@@ -102,7 +97,7 @@ public class CameraActivity extends BaseActivity{
       getFragmentManager()
           .beginTransaction()
           // newInstance()：实例化一个fragment
-          .replace(R.id.container, PushFragment.newInstance())
+          .replace(R.id.container, PushLocalFragment.newInstance())
           .commit();
 
     }

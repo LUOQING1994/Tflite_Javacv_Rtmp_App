@@ -84,8 +84,8 @@ public class MainCarBehaviorAnalysis {
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
 //        Log.i("opencv结果", "==========================");
 //        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
-//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
-//        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
+        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
+        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && 1 > model_result_prob && model_result_prob > 0.85
@@ -104,26 +104,28 @@ public class MainCarBehaviorAnalysis {
                 tmp_car_state = 1;
             }
         }
-        if (model_result_index == 6 && 1 > model_result_prob && model_result_prob > 0.9
+        if (model_result_index == 6 &&  model_result_prob > 0.9
                 && now_image_hull < 10 ){
             //  当模型识别结果为幕布且概率较高时 强制设置为运输（预防在倾倒前 打开幕布时 避免识别成装载）
             tmp_car_state = 0;
             tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
-        } else if (model_result_index == 5 && 1 > model_result_prob && model_result_prob > 0.9
-                && tmp_angle < 15){
+        }
+        else if (model_result_index == 5  && model_result_prob > 0.9
+                && tmp_angle < 15 && now_image_hull < 25){
             //  当模型识别结果为空且概率较高时 强制设置为运输（预防在倾倒后 由于挡板晃动 导致识别成装载）
             tmp_car_state = 0;
             tmp_car_load = tmp_car_state;
-            tmp_state_change_number = 0;
-        } else {
+        }
+        else {
             // 判断是否出现 装载变运输 运输变装载的情况 当前一个模型类别为篷布时 说明此刻是倾倒前的打开篷布操作 不可视为装载
             if ((tmp_car_load + tmp_car_state) == -1 && last_car_category != 6){
                 tmp_state_change_number = Math.min(tmp_state_change_number + 1, 4);
             }
             if (tmp_car_state != 1) {
                 if (tmp_state_change_number == 4){
-                    tmp_car_state = -1;   // 运输转装载 装载转运输次数达到3次 强制设置为装载
+                    tmp_car_state = -1;   // 运输转装载 装载转运输次数达到4次 强制设置为装载
+                    tmp_car_load = tmp_car_state;
                 } else {
                     tmp_car_load = tmp_car_state;
                     tmp_car_state = tmp_last_car_state;   // 沿用之前的状态 ================
@@ -131,15 +133,17 @@ public class MainCarBehaviorAnalysis {
             } else {
                 // 倾倒出现时 统计状态变化的值需要重置tmp_state_change_number
                 tmp_state_change_number = 0;
+                tmp_car_load = tmp_car_state;
             }
         }
-//        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
-//        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
+        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
+        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
 
         //    ==========  利用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输     ===========================
-        if (simMidTime > Integer.parseInt(props.getProperty("sim_time_through"))
+        if ((simMidTime > Integer.parseInt(props.getProperty("sim_time_through"))
                 || hullMidTime > Integer.parseInt(props.getProperty("hull_time_through"))
-                || speedMidTime > Integer.parseInt(props.getProperty("speed_time_through"))){
+                || speedMidTime > Integer.parseInt(props.getProperty("speed_time_through")))
+                && tmp_angle < 15){
             tmp_car_state = 0;
             tmp_car_load = tmp_car_state;
             tmp_state_change_number = 0;
@@ -281,11 +285,13 @@ public class MainCarBehaviorAnalysis {
 //                    && current_speed > 10
             )
             {
-                unCloseNumber = Math.max(unCloseNumber++, Integer.parseInt(props.getProperty("up_unClose_max_number")));
+                unCloseNumber = Math.min(unCloseNumber++, Integer.parseInt(props.getProperty("up_unClose_max_number")));
+                Log.i("保存的图片数", unCloseNumber + "  --------------------------------- " + unCloseNumber++);
                 if(unCloseNumber >= Integer.parseInt(props.getProperty("up_unClose_max_number"))){
                     Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
                     // 上传完毕后 不再进入该循环
                     is_upUnCloseFlag = true;
+                    unCloseNumber = 0;
                 } else {
                     Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
                     filesOption("/sdcard/android.example.com.tflitecamerademo/un_close/",  Integer.parseInt(props.getProperty("up_unClose_max_number")), frame_data);
@@ -324,6 +330,10 @@ public class MainCarBehaviorAnalysis {
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
             long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
             stateMidTime = sec;
+        }
+        // 未遮蔽状态 只能在运输时 计算
+        if (stateMidTime == 0) {
+            unCloseMidTime = 0;
         }
     }
     /**
@@ -365,8 +375,6 @@ public class MainCarBehaviorAnalysis {
             unCloseMidTime = sec;
         }
         Log.i("统计未遮蔽时间", "tmp_unClose_flag : " + tmp_unClose_flag + ": " + classifier.CAR_CATEGORY  + " : " + classifier.CAR_CATEGORY + ": " + classifier.CAR_CATEGORY_PROBABILITY);
-        Log.i("统计未遮蔽时间", "unClose_end_time_flag : " + unClose_end_time_flag );
-        Log.i("统计未遮蔽时间", "unClose_start_time_flag: " + unClose_start_time_flag );
     }
     /**
      *  判断文件夹中文件数 并存储文件
