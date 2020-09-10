@@ -11,11 +11,21 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -84,8 +94,8 @@ public class MainCarBehaviorAnalysis {
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
 //        Log.i("opencv结果", "==========================");
 //        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
-        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
-        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
+//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
+//        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && 1 > model_result_prob && model_result_prob > 0.85
@@ -136,8 +146,8 @@ public class MainCarBehaviorAnalysis {
                 tmp_car_load = tmp_car_state;
             }
         }
-        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
-        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
+//        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
+//        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
 
         //    ==========  利用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输     ===========================
         if ((simMidTime > Integer.parseInt(props.getProperty("sim_time_through"))
@@ -182,6 +192,7 @@ public class MainCarBehaviorAnalysis {
             tmp_car_category = classifier.CAR_CATEGORY;
             last_image = tmp_cut_image;
             tmp_last_image = tmp_cut_image;
+//            upImageToService("/sdcard/android.example.com.tflitecamerademo/up_load/");
         }
         // 计算前后两帧的相似度
         Integer image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
@@ -212,7 +223,7 @@ public class MainCarBehaviorAnalysis {
             tmp_last_image = tmp_cut_image;
         } else {
             timeF_switch_bg = timeF_switch_bg - 1;
-            tmp_cut_image.release();
+//            tmp_cut_image.release();
         }
         return matNumberUtils;
     }
@@ -255,16 +266,19 @@ public class MainCarBehaviorAnalysis {
     private boolean is_upOneFlag = false; // 是否可以上传倾倒或者装载的图片
     private boolean is_upUnCloseFlag = false; // 是否可以上传倾未覆盖的图片
     private int unCloseNumber = 0; // 记录未覆盖的图片数量
+    private String upImagePath = ""; // 图片上传的地址
 
     public void imageOptionFrame(Bitmap frame_data){
-        Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
+//        Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
         if ( stateMidTime < Integer.parseInt(props.getProperty("state_time_through")) ){
             if ( image_sim_number != Integer.parseInt(props.getProperty("image_sim_number")) ){
                 if( tmp_car_state == -1 ){
-                    filesOption("/sdcard/android.example.com.tflitecamerademo/up_load/", Integer.parseInt(props.getProperty("up_image_max_number")),frame_data);
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/up_load/";
+                    filesOption(upImagePath, Integer.parseInt(props.getProperty("save_image_max_number")),frame_data);
                     is_upOneFlag = true;
                 } else if ( tmp_car_state == 1){
-                    filesOption("/sdcard/android.example.com.tflitecamerademo/up_dump/",  Integer.parseInt(props.getProperty("up_image_max_number")), frame_data);
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/up_dump/";
+                    filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_image_max_number")), frame_data);
                     is_upOneFlag = true;
                 }
             }
@@ -285,20 +299,114 @@ public class MainCarBehaviorAnalysis {
 //                    && current_speed > 10
             )
             {
-                unCloseNumber = Math.min(unCloseNumber++, Integer.parseInt(props.getProperty("up_unClose_max_number")));
+                unCloseNumber = Math.min(unCloseNumber++, Integer.parseInt(props.getProperty("save_unClose_max_number")));
                 Log.i("保存的图片数", unCloseNumber + "  --------------------------------- " + unCloseNumber++);
-                if(unCloseNumber >= Integer.parseInt(props.getProperty("up_unClose_max_number"))){
+                if(unCloseNumber >= Integer.parseInt(props.getProperty("save_unClose_max_number"))){
                     Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
                     // 上传完毕后 不再进入该循环
                     is_upUnCloseFlag = true;
                     unCloseNumber = 0;
                 } else {
                     Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
-                    filesOption("/sdcard/android.example.com.tflitecamerademo/un_close/",  Integer.parseInt(props.getProperty("up_unClose_max_number")), frame_data);
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/un_close/";
+                    filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_unClose_max_number")), frame_data);
                 }
             }
         }
     }
+    /**
+     *  图片上传操作
+     */
+    public void upImageToService(String imagePath){
+        File dir1 = new File(imagePath);
+        if (!dir1.exists()) {
+            Log.i("图片上传操作", "没有对应的文件");
+            return;
+        }
+        //  当存储的图片数达到阈值时 不再存储
+        int tmp_interval = dir1.listFiles().length % Integer.parseInt(props.getProperty("up_image_max_number"));
+        tmp_interval = tmp_interval == 0 ? 1 : tmp_interval;
+        int tmp_up_number = 0;   // 记录已经上传的图片数量
+        for (int i = 0; i < dir1.listFiles().length && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
+            File tmp_file = dir1.listFiles()[i];
+            // 上传图片
+            String[] tmp_name_array = tmp_file.getAbsolutePath().split("/");
+            String return_str = uploadFile(tmp_file,tmp_name_array[tmp_name_array.length - 1]);
+            if (return_str.equals("false")){
+                Log.i("图片上传操作", " 失败！ 移动数据到另外的文件夹 并使用线程开始轮询上传操作");
+
+                // TODO
+                // 1,图片转移操作
+                // 2，txt文件上传
+
+                return;
+            }
+            tmp_up_number++;
+            i = tmp_interval + i;
+        }
+        Log.i("图片上传操作", " 成功！开始删除本地数据。。。。。 ");
+        File[] files = dir1.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                //删除
+                file.delete();
+            }
+        }
+        Log.i("图片上传操作", " 成功！删除本地数据。。。。。 ");
+    }
+    /**
+     *file  图片文件
+     *requesurl  服务器后台
+     */
+    public  String uploadFile(File file, String fileName){
+        String result = null;
+        try {
+            URL url = new URL(props.getProperty("up_service_url"));
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");//请求方式 默认get请求
+            conn.setConnectTimeout(5000);
+            conn.setDoInput(true);//允许输入流
+            conn.setDoOutput(true);//允许输出流
+            conn.setUseCaches(false);//不允许使用缓存
+            // 设置编码格式
+            conn.setRequestProperty("Charset", "UTF-8");
+            conn.setRequestProperty("fileName", fileName);
+            if(file != null){
+                Log.i("开始上传", "==== 获得数据 ====");
+                DataOutputStream dos = new DataOutputStream(conn.getOutputStream());//getoutputStream会隐式的调用connect()
+                InputStream is = new FileInputStream(file);
+                byte[] bytes = new byte[2048];
+                int len = 0;
+                while((len = is.read(bytes)) != -1){
+                    dos.write(bytes,0,len);//将图片转为二进制输出
+                }
+                is.close();
+                dos.close();
+
+                int res=conn.getResponseCode();//获取响应码
+                if(res==200){				//200表示响应后台成功！
+                    InputStream input=conn.getInputStream();//获取流
+                    Log.i("开始上传", "返回数据");
+                    int ss;
+                    byte[] buffer=new byte[1024];
+                    StringBuilder builder=new StringBuilder();
+                    while((ss=input.read(buffer))!=-1){
+                        builder.append(new String(buffer,0,ss,"UTF-8"));//获取后台传递过来的数据
+                    }
+                    result=builder.toString();
+                }
+            }
+            conn.disconnect();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            result = "false";
+        } catch (IOException e) {
+            e.printStackTrace();
+            result = "false";
+        }
+        return result;
+    }
+
     /**
      *  计算运输的持续时间
      */
@@ -442,6 +550,7 @@ public class MainCarBehaviorAnalysis {
         props.setProperty("last_state", String.valueOf(last_car_state));
         props.setProperty("last_model_result", String.valueOf(last_car_category));
         props.setProperty("current_Id", "川12312");
+        props.setProperty("current_time", String.valueOf(System.currentTimeMillis()));
 
     }
     /**
