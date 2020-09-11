@@ -97,7 +97,7 @@ public class CameraActivity extends BaseActivity{
       getFragmentManager()
           .beginTransaction()
           // newInstance()：实例化一个fragment
-          .replace(R.id.container, PushFragment.newInstance())
+          .replace(R.id.container, PushLocalFragment.newInstance())
           .commit();
 
     }

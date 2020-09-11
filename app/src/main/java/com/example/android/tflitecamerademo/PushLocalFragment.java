@@ -40,7 +40,6 @@ import com.voiceengine.NTAudioRecordV2;
 import com.voiceengine.NTAudioRecordV2Callback;
 
 import org.bytedeco.javacv.AndroidFrameConverter;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
 import org.opencv.android.Utils;
 import org.opencv.core.CvType;
@@ -643,7 +642,7 @@ public class PushLocalFragment extends Fragment {
 
     Bitmap bmp = null;
     public void readLocalVedioByThread() {
-        String vedioUrl = "long_lodaing_1_data.mp4";
+        String vedioUrl = "long.mp4";
         try {
 //            String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
             String file = "sdcard" + "/" + vedioUrl;
@@ -653,7 +652,7 @@ public class PushLocalFragment extends Fragment {
             grabber.setImageHeight(720);
             //为了加快转bitmap这句一定要写
             grabber.setPixelFormat(AV_PIX_FMT_RGBA);
-            grabber.start();
+            grabber.start(String.valueOf(50*1024));
             converter = new AndroidFrameConverter();
             frame = grabber.grabImage();
 

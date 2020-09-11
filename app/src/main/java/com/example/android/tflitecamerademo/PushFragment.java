@@ -577,7 +577,7 @@ public class PushFragment extends Fragment {
             return;
         }
         runClassifier = false;
-        Bitmap frame_data = rawByteArray2RGBABitmap2(camera_data);
+        Bitmap frame_data = ByteArray2Bitmap(camera_data);
         matNumberUtils = mainCarBehaviorAnalysis.carBehaviorAnalysis(frame_data,activity,classifier, currentSpeed, currentAngle);
 //        model_frame_data = Bitmap.createBitmap(matNumberUtils.getIamge().cols(), matNumberUtils.getIamge().rows(),
 //                Bitmap.Config.ARGB_4444);

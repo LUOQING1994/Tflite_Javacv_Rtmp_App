@@ -1,6 +1,9 @@
 package com.example.android.tflitecamerademo;
 
+import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 
 import com.alibaba.fastjson.JSON;
@@ -22,10 +25,8 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -77,6 +78,8 @@ public class MainCarBehaviorAnalysis {
             activity = activitys;
             props = activity.props;
             classifier = classifiers;
+            // 开启检测未上传成功的图片线程
+            startUpImageThread();
         }
         current_speed = tmp_speed;
         current_angle = tmp_angle;
@@ -122,9 +125,15 @@ public class MainCarBehaviorAnalysis {
             tmp_state_change_number = 0;
         }
         else if (model_result_index == 5  && model_result_prob > 0.9
-                && tmp_angle < 15 && now_image_hull < 25){
+                && tmp_angle < 15){
             //  当模型识别结果为空且概率较高时 强制设置为运输（预防在倾倒后 由于挡板晃动 导致识别成装载）
-            tmp_car_state = 0;
+            if (tmp_last_car_state == 1){
+                if (hullMidTime > 5){
+                    tmp_car_state = 0;
+                } else {
+                    tmp_car_state = 1;
+                }
+            }
             tmp_car_load = tmp_car_state;
         }
         else {
@@ -192,7 +201,6 @@ public class MainCarBehaviorAnalysis {
             tmp_car_category = classifier.CAR_CATEGORY;
             last_image = tmp_cut_image;
             tmp_last_image = tmp_cut_image;
-//            upImageToService("/sdcard/android.example.com.tflitecamerademo/up_load/");
         }
         // 计算前后两帧的相似度
         Integer image_sim = openCVTools.split_blok_box_sim(last_image, tmp_cut_image);
@@ -223,7 +231,6 @@ public class MainCarBehaviorAnalysis {
             tmp_last_image = tmp_cut_image;
         } else {
             timeF_switch_bg = timeF_switch_bg - 1;
-//            tmp_cut_image.release();
         }
         return matNumberUtils;
     }
@@ -268,26 +275,26 @@ public class MainCarBehaviorAnalysis {
     private int unCloseNumber = 0; // 记录未覆盖的图片数量
     private String upImagePath = ""; // 图片上传的地址
 
+    @SuppressLint("SdCardPath")
     public void imageOptionFrame(Bitmap frame_data){
 //        Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
         if ( stateMidTime < Integer.parseInt(props.getProperty("state_time_through")) ){
-            if ( image_sim_number != Integer.parseInt(props.getProperty("image_sim_number")) ){
+            if ( image_sim_number <= 2 ){
                 if( tmp_car_state == -1 ){
-                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/up_load/";
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/data/up_load/";
                     filesOption(upImagePath, Integer.parseInt(props.getProperty("save_image_max_number")),frame_data);
                     is_upOneFlag = true;
                 } else if ( tmp_car_state == 1){
-                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/up_dump/";
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/data/up_dump/";
                     filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_image_max_number")), frame_data);
                     is_upOneFlag = true;
                 }
             }
-
         } else {
             if( is_upOneFlag ){
                 Log.i("上传图片", "开始上传图片。。。。。。。。。。。");
                 // 当获得服务端上传成功信号时 删除本地图片和txt文件
-                // TODO
+                upImageToService(upImagePath);
                 is_upOneFlag = false;
                 is_upUnCloseFlag = false;
             }
@@ -304,11 +311,12 @@ public class MainCarBehaviorAnalysis {
                 if(unCloseNumber >= Integer.parseInt(props.getProperty("save_unClose_max_number"))){
                     Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
                     // 上传完毕后 不再进入该循环
+                    upImageToService(upImagePath);
                     is_upUnCloseFlag = true;
                     unCloseNumber = 0;
                 } else {
                     Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
-                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/un_close/";
+                    upImagePath = "/sdcard/android.example.com.tflitecamerademo/data/un_close/";
                     filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_unClose_max_number")), frame_data);
                 }
             }
@@ -323,42 +331,56 @@ public class MainCarBehaviorAnalysis {
             Log.i("图片上传操作", "没有对应的文件");
             return;
         }
-        //  当存储的图片数达到阈值时 不再存储
+
         int tmp_interval = dir1.listFiles().length % Integer.parseInt(props.getProperty("up_image_max_number"));
         tmp_interval = tmp_interval == 0 ? 1 : tmp_interval;
         int tmp_up_number = 0;   // 记录已经上传的图片数量
-        for (int i = 0; i < dir1.listFiles().length && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
+
+        for (int i = 0;i < dir1.listFiles().length
+                && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
             File tmp_file = dir1.listFiles()[i];
+            // 跳过fail文件夹
+            if ( tmp_file.isDirectory()){
+                i++;
+                continue;
+            }
             // 上传图片
-            String[] tmp_name_array = tmp_file.getAbsolutePath().split("/");
-            String return_str = uploadFile(tmp_file,tmp_name_array[tmp_name_array.length - 1]);
+            String return_str = uploadFile(tmp_file);
             if (return_str.equals("false")){
                 Log.i("图片上传操作", " 失败！ 移动数据到另外的文件夹 并使用线程开始轮询上传操作");
-
+                // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
+                Date date = new Date(Long.getLong(tmp_file.getName().split(".")[0]));
+                @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                // 失败一次就转移一次图片
+                filesRemoveOtherDir(tmp_file,imagePath + "fail/" + sdf.format(date));
+                // 不让upImageRunable线程进行上传操作
+                upImageFalge = false;
                 // TODO
                 // 1,图片转移操作
                 // 2，txt文件上传
-
-                return;
             }
             tmp_up_number++;
             i = tmp_interval + i;
         }
-        Log.i("图片上传操作", " 成功！开始删除本地数据。。。。。 ");
+        Log.i("图片上传操作", "开始删除本地数据。。。。。 ");
         File[] files = dir1.listFiles();
         if (files != null) {
             for (File file : files) {
-                //删除
-                file.delete();
+                if (file.isFile()){
+                    // 删除
+                    file.delete();
+                }
             }
         }
-        Log.i("图片上传操作", " 成功！删除本地数据。。。。。 ");
+        Log.i("图片上传操作", "删除本地数据。。。。。 ");
+        // 开始启用upImageRunable线程
+        upImageFalge = true;
     }
     /**
      *file  图片文件
      *requesurl  服务器后台
      */
-    public  String uploadFile(File file, String fileName){
+    public  String uploadFile(File file){
         String result = null;
         try {
             URL url = new URL(props.getProperty("up_service_url"));
@@ -370,7 +392,7 @@ public class MainCarBehaviorAnalysis {
             conn.setUseCaches(false);//不允许使用缓存
             // 设置编码格式
             conn.setRequestProperty("Charset", "UTF-8");
-            conn.setRequestProperty("fileName", fileName);
+            conn.setRequestProperty("fileName", file.getName());
             if(file != null){
                 Log.i("开始上传", "==== 获得数据 ====");
                 DataOutputStream dos = new DataOutputStream(conn.getOutputStream());//getoutputStream会隐式的调用connect()
@@ -383,8 +405,8 @@ public class MainCarBehaviorAnalysis {
                 is.close();
                 dos.close();
 
-                int res=conn.getResponseCode();//获取响应码
-                if(res==200){				//200表示响应后台成功！
+                int res = conn.getResponseCode();//获取响应码
+                if(res == 200){				//200表示响应后台成功！
                     InputStream input=conn.getInputStream();//获取流
                     Log.i("开始上传", "返回数据");
                     int ss;
@@ -407,6 +429,94 @@ public class MainCarBehaviorAnalysis {
         return result;
     }
 
+    /**
+     * 创建一个线程 用于轮询未上传成功的照片数据
+     */
+    /** Starts a background thread and its {@link Handler}. */
+    private HandlerThread upImageThread;
+    private static final String HANDLE_THREAD_NAME = "upImageThread";
+    private Handler upImageHandler;
+    private final Object lock = new Object();
+    private boolean upImageFalge = false;
+
+    private void startUpImageThread() {
+        upImageThread = new HandlerThread(HANDLE_THREAD_NAME);
+        upImageThread.start();
+        upImageHandler = new Handler(upImageThread.getLooper());
+        synchronized (lock) {
+            upImageFalge = true;
+        }
+        upImageHandler.post(upImageRunable);
+    }
+    private Runnable upImageRunable =
+            new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (lock) {
+                        if (upImageFalge) {
+                            cheackUpImage();
+                        }
+                    }
+                    upImageHandler.post(upImageRunable);
+                }
+            };
+
+    /**
+     * 用于轮询查看未上传成功的照片
+     */
+    @SuppressLint("SdCardPath")
+    public void cheackUpImage(){
+        upImageFalge = false;
+        // 检测是否上传成功需要单独开一个线程来实时检测
+        // 开启线程 检测是否有未上传的图片 并进行轮询
+        if (upImagePath == ""){
+            // 1,分别检查三个文件夹中是否有数据 有的话尝试上传
+            // 2,检查fail文件夹中是否有数据 有的话尝试上传
+            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/un_close/");
+            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_dump/");
+            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_load/");
+            Log.i("图片上传操作", " 检查是否有没上传的原始数据。。。。。。 ");
+            upImagePath = "_"; // 防止再次进入该分支
+        }
+        int dirNumber = upAndDelDirImage(upImagePath);
+        if (dirNumber == 0) {
+            Log.i("图片上传操作", " 停止使用线程进行上传操作。。。。。 ");
+            upImageFalge = false;
+        } else {
+            Log.i("图片上传操作", " 启用线程进行上传图片。。。。。 ");
+            upImageFalge = true;
+            try {
+                Thread.sleep(5000);
+            } catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    }
+    /**
+     *  上传并删除对应文件夹中的数据
+     */
+    public int upAndDelDirImage( String file_path){
+        File tmp_check_file = new File(file_path + "fail/");
+        if (tmp_check_file.exists()){
+            File[] files = tmp_check_file.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    File[] sub_files = file.listFiles();
+                    for ( File sub_file : sub_files){
+                        String re_result = uploadFile(sub_file);
+                        Log.i("图片上传操作", "线程结果 " + re_result);
+                        if (re_result.equals("ok")){
+                            // 上传成功则删除对应照片
+                            sub_file.delete();
+                        }
+                    }
+                    // 当文件夹下的图片全都删除后 再删除文件夹
+                    file.delete();
+                }
+            }
+        }
+        return tmp_check_file.listFiles() == null ? 0 : tmp_check_file.listFiles().length;
+    }
     /**
      *  计算运输的持续时间
      */
@@ -532,6 +642,21 @@ public class MainCarBehaviorAnalysis {
             e1.printStackTrace();
         } catch (IOException e2) {
             e2.printStackTrace();
+        }
+    }
+
+    /**
+     *  移动文件到另一个文件夹中
+     */
+    public void filesRemoveOtherDir( File origin_file,String new_path){
+        Log.d("photoPath -->> ", "开始移动文件======================   ");
+        File dir1 = new File(new_path);
+        if (!dir1.exists()) {
+            dir1.mkdirs();
+        }
+        if (origin_file != null) {
+            // 文件移动
+            origin_file.renameTo(new File(new_path + "/" + origin_file.getName()));
         }
     }
 
