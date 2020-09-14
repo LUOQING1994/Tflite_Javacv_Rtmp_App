@@ -642,7 +642,7 @@ public class PushLocalFragment extends Fragment {
 
     Bitmap bmp = null;
     public void readLocalVedioByThread() {
-        String vedioUrl = "long.mp4";
+        String vedioUrl = "long_dump_data.mp4";
         try {
 //            String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
             String file = "sdcard" + "/" + vedioUrl;

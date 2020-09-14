@@ -323,18 +323,17 @@ public class MainCarBehaviorAnalysis {
             //  未关闭时间较长、角度小于10度、速度持续时间大于10秒（为了测试暂时取消速度的条件）
             if (unCloseMidTime > Integer.parseInt(props.getProperty("unClose_max_time"))
                     && current_angle < 10
-//                    && current_speed > 10
+//  TODO                  && current_speed > 10
             )
             {
                 //  发现未遮蔽 立即上传
-                unCloseNumber = Math.min(unCloseNumber++, Integer.parseInt(props.getProperty("save_unClose_max_number")));
+                unCloseNumber = Math.min(unCloseNumber + 1, 10);
                 if(unCloseNumber < Integer.parseInt(props.getProperty("save_unClose_max_number"))){
                     Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
                     upImagePath = "/sdcard/android.example.com.tflitecamerademo/data/un_close/";
                     filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_unClose_max_number")), frame_data);
                     Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
                     upImageToService(upImagePath);
-                } else {
                     // 开始启用upImageRunable线程
                     upImageFalge = true;
                 }
@@ -371,7 +370,6 @@ public class MainCarBehaviorAnalysis {
                 // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
                 String[] strArray = tmp_file.getName().split("\\.");
                 if (strArray[1].equals("txt")){
-                    // TODO    暂时不处理
                     i++;
                     continue;
                 } else {
@@ -404,9 +402,6 @@ public class MainCarBehaviorAnalysis {
         }
         Log.i("图片上传操作", "删除本地数据。。。。。 ");
     }
-
-
-    // 线程开启问题有待解决 ================================
 
     /**
      *file  图片文件
@@ -550,6 +545,10 @@ public class MainCarBehaviorAnalysis {
         }
         return tmp_check_file.listFiles() == null ? 0 : tmp_check_file.listFiles().length;
     }
+    /**
+     *
+     */
+
     /**
      *  计算运输的持续时间
      */
