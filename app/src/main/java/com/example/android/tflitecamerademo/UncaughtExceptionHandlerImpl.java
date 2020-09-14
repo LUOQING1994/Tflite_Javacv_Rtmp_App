@@ -126,25 +126,25 @@ public class UncaughtExceptionHandlerImpl implements UncaughtExceptionHandler {
             } catch (InterruptedException e) {
                 Log.e(TAG, "error : ", e);
             }
-            if (mIsRestartApp) { // 如果需要重启
-                Intent intent = new Intent(mContext.getApplicationContext(), mRestartActivity);
-                AlarmManager mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
-                //重启应用，得使用PendingIntent
-                PendingIntent restartIntent = PendingIntent.getActivity(
-                        mContext.getApplicationContext(), 0, intent,
-                        Intent.FLAG_ACTIVITY_NEW_TASK);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    //Android6.0以上，包含6.0
-                    mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); //解决Android6.0省电机制带来的不准时问题
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    //Android4.4到Android6.0之间，包含4.4
-                    mAlarmManager.setExact(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); // 解决set()在api19上不准时问题
-                } else {
-                    mAlarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent);
-                }
-            }
-            // 结束应用
-            ((CrashApplication) mContext.getApplicationContext()).removeAllActivity();
+//            if (mIsRestartApp) { // 如果需要重启
+//                Intent intent = new Intent(mContext.getApplicationContext(), mRestartActivity);
+//                AlarmManager mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+//                //重启应用，得使用PendingIntent
+//                PendingIntent restartIntent = PendingIntent.getActivity(
+//                        mContext.getApplicationContext(), 0, intent,
+//                        Intent.FLAG_ACTIVITY_NEW_TASK);
+//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+//                    //Android6.0以上，包含6.0
+//                    mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); //解决Android6.0省电机制带来的不准时问题
+//                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+//                    //Android4.4到Android6.0之间，包含4.4
+//                    mAlarmManager.setExact(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); // 解决set()在api19上不准时问题
+//                } else {
+//                    mAlarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent);
+//                }
+//            }
+//            // 结束应用
+//            ((CrashApplication) mContext.getApplicationContext()).removeAllActivity();
         }
     }
 

@@ -2,12 +2,16 @@ package com.example.android.tflitecamerademo;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import com.alibaba.fastjson.JSON;
 
+import org.bytedeco.javacpp.presets.opencv_core;
+import org.bytedeco.javacv.FrameFilter;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
@@ -25,7 +29,10 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Properties;
 
@@ -271,9 +278,9 @@ public class MainCarBehaviorAnalysis {
     private boolean unClose_start_time_flag = true;
     private boolean unClose_end_time_flag = false;
     private boolean is_upOneFlag = false; // 是否可以上传倾倒或者装载的图片
-    private boolean is_upUnCloseFlag = false; // 是否可以上传倾未覆盖的图片
     private int unCloseNumber = 0; // 记录未覆盖的图片数量
     private String upImagePath = ""; // 图片上传的地址
+    private Long upImageFirstTimeInterval = 0L;  // 第一次进行上传的时间戳
 
     @SuppressLint("SdCardPath")
     public void imageOptionFrame(Bitmap frame_data){
@@ -290,34 +297,46 @@ public class MainCarBehaviorAnalysis {
                     is_upOneFlag = true;
                 }
             }
+            unCloseNumber = 0;
         } else {
             if( is_upOneFlag ){
                 Log.i("上传图片", "开始上传图片。。。。。。。。。。。");
                 // 当获得服务端上传成功信号时 删除本地图片和txt文件
-                upImageToService(upImagePath);
-                is_upOneFlag = false;
-                is_upUnCloseFlag = false;
+
+                // 在连续的5分钟内 只能上传一次
+                if (upImageFirstTimeInterval == 0) {
+                    upImageFirstTimeInterval = System.currentTimeMillis();
+                }
+                long diff = System.currentTimeMillis() - upImageFirstTimeInterval;
+                long day = diff / (24 * 60 * 60 * 1000);
+                long hour = (diff / (60 * 60 * 1000) - day * 24);
+                long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
+                if (min > 5 || min == 0){
+                    upImageToService(upImagePath);
+                    is_upOneFlag = false;
+                    // 开始启用upImageRunable线程
+                    upImageFalge = true;
+                }
             }
             // 开始对幕布是否关闭进行判定
             countUnCloseTime(); // 统计幕布未遮蔽的时间 若大于设定的时间阈值 则开始上传图片
             //  未关闭时间较长、角度小于10度、速度持续时间大于10秒（为了测试暂时取消速度的条件）
             if (unCloseMidTime > Integer.parseInt(props.getProperty("unClose_max_time"))
-                    && current_angle < 10 && !is_upUnCloseFlag
+                    && current_angle < 10
 //                    && current_speed > 10
             )
             {
+                //  发现未遮蔽 立即上传
                 unCloseNumber = Math.min(unCloseNumber++, Integer.parseInt(props.getProperty("save_unClose_max_number")));
-                Log.i("保存的图片数", unCloseNumber + "  --------------------------------- " + unCloseNumber++);
-                if(unCloseNumber >= Integer.parseInt(props.getProperty("save_unClose_max_number"))){
-                    Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
-                    // 上传完毕后 不再进入该循环
-                    upImageToService(upImagePath);
-                    is_upUnCloseFlag = true;
-                    unCloseNumber = 0;
-                } else {
+                if(unCloseNumber < Integer.parseInt(props.getProperty("save_unClose_max_number"))){
                     Log.i("幕布未关闭", "开始收集照片。。。。。。。。。。。");
                     upImagePath = "/sdcard/android.example.com.tflitecamerademo/data/un_close/";
                     filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_unClose_max_number")), frame_data);
+                    Log.i("幕布未关闭", "开始进行图片上传操作。。。。。。。。。。。");
+                    upImageToService(upImagePath);
+                } else {
+                    // 开始启用upImageRunable线程
+                    upImageFalge = true;
                 }
             }
         }
@@ -326,16 +345,17 @@ public class MainCarBehaviorAnalysis {
      *  图片上传操作
      */
     public void upImageToService(String imagePath){
+        // 不让upImageRunable线程进行上传操作
+        upImageFalge = false;
         File dir1 = new File(imagePath);
         if (!dir1.exists()) {
             Log.i("图片上传操作", "没有对应的文件");
             return;
         }
 
-        int tmp_interval = dir1.listFiles().length % Integer.parseInt(props.getProperty("up_image_max_number"));
+        int tmp_interval = dir1.listFiles().length / Integer.parseInt(props.getProperty("up_image_max_number"));
         tmp_interval = tmp_interval == 0 ? 1 : tmp_interval;
         int tmp_up_number = 0;   // 记录已经上传的图片数量
-
         for (int i = 0;i < dir1.listFiles().length
                 && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
             File tmp_file = dir1.listFiles()[i];
@@ -349,12 +369,22 @@ public class MainCarBehaviorAnalysis {
             if (return_str.equals("false")){
                 Log.i("图片上传操作", " 失败！ 移动数据到另外的文件夹 并使用线程开始轮询上传操作");
                 // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
-                Date date = new Date(Long.getLong(tmp_file.getName().split(".")[0]));
-                @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-                // 失败一次就转移一次图片
-                filesRemoveOtherDir(tmp_file,imagePath + "fail/" + sdf.format(date));
-                // 不让upImageRunable线程进行上传操作
-                upImageFalge = false;
+                String[] strArray = tmp_file.getName().split("\\.");
+                if (strArray[1].equals("txt")){
+                    // TODO    暂时不处理
+                    i++;
+                    continue;
+                } else {
+                    Long tmp_time = Long.parseLong(strArray[0]);
+                    Date date = new Date(tmp_time);
+                    @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                    // 失败一次就转移一次图片
+                    try {
+                        filesRemoveOtherDir(tmp_file,imagePath + "/fail/" + sdf.format(date));
+                    } catch (IOException e){
+                        e.printStackTrace();
+                    }
+                }
                 // TODO
                 // 1,图片转移操作
                 // 2，txt文件上传
@@ -373,9 +403,11 @@ public class MainCarBehaviorAnalysis {
             }
         }
         Log.i("图片上传操作", "删除本地数据。。。。。 ");
-        // 开始启用upImageRunable线程
-        upImageFalge = true;
     }
+
+
+    // 线程开启问题有待解决 ================================
+
     /**
      *file  图片文件
      *requesurl  服务器后台
@@ -467,19 +499,20 @@ public class MainCarBehaviorAnalysis {
     @SuppressLint("SdCardPath")
     public void cheackUpImage(){
         upImageFalge = false;
-        // 检测是否上传成功需要单独开一个线程来实时检测
         // 开启线程 检测是否有未上传的图片 并进行轮询
-        if (upImagePath == ""){
-            // 1,分别检查三个文件夹中是否有数据 有的话尝试上传
-            // 2,检查fail文件夹中是否有数据 有的话尝试上传
-            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/un_close/");
-            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_dump/");
-            upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_load/");
-            Log.i("图片上传操作", " 检查是否有没上传的原始数据。。。。。。 ");
-            upImagePath = "_"; // 防止再次进入该分支
-        }
-        int dirNumber = upAndDelDirImage(upImagePath);
-        if (dirNumber == 0) {
+
+        // 1,分别检查三个文件夹中是否有数据 有的话尝试上传
+        upImageToService("/sdcard/android.example.com.tflitecamerademo/data/un_close");
+        upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_dump");
+        upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_load");
+
+        // 2,检查fail文件夹中是否有数据 有的话尝试上传
+        int tmp_close = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/un_close");
+        int tmp_dump = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_dump");
+        int tmp_load = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_load");
+        Log.i("图片上传操作", " 检查文件夹是否有没上传的原始数据。。。。。。 ");
+
+        if (tmp_close == 0 && tmp_dump == 0 && tmp_load == 0) {
             Log.i("图片上传操作", " 停止使用线程进行上传操作。。。。。 ");
             upImageFalge = false;
         } else {
@@ -493,10 +526,10 @@ public class MainCarBehaviorAnalysis {
         }
     }
     /**
-     *  上传并删除对应文件夹中的数据
+     *  上传并删除fail中对应文件夹中的数据
      */
     public int upAndDelDirImage( String file_path){
-        File tmp_check_file = new File(file_path + "fail/");
+        File tmp_check_file = new File(file_path + "/fail");
         if (tmp_check_file.exists()){
             File[] files = tmp_check_file.listFiles();
             if (files != null) {
@@ -599,6 +632,8 @@ public class MainCarBehaviorAnalysis {
      */
     public void filesOption( String path, int maxFileNumber, Bitmap frame_data){
         Log.d("photoPath -->> ", "存储开始======================   ");
+        // 不再上图片上传线程工作
+        upImageFalge = false;
         File dir1 = new File(path);
         if (!dir1.exists()) {
             dir1.mkdirs();
@@ -648,15 +683,24 @@ public class MainCarBehaviorAnalysis {
     /**
      *  移动文件到另一个文件夹中
      */
-    public void filesRemoveOtherDir( File origin_file,String new_path){
+    public void filesRemoveOtherDir(File origin_file, String new_path) throws IOException {
         Log.d("photoPath -->> ", "开始移动文件======================   ");
         File dir1 = new File(new_path);
         if (!dir1.exists()) {
             dir1.mkdirs();
         }
         if (origin_file != null) {
-            // 文件移动
-            origin_file.renameTo(new File(new_path + "/" + origin_file.getName()));
+            File copy_file = new File(new_path + "/" + origin_file.getName());
+            FileChannel inputChannel = null;
+            FileChannel outputChannel = null;
+            try {
+                inputChannel = new FileInputStream(origin_file).getChannel();
+                outputChannel = new FileOutputStream(copy_file).getChannel();
+                outputChannel.transferFrom(inputChannel, 0, inputChannel.size());
+            }finally {
+                inputChannel.close();
+                outputChannel.close();
+            }
         }
     }
 
