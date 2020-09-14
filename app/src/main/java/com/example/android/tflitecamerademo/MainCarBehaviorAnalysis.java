@@ -17,6 +17,7 @@ import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -25,6 +26,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -343,6 +345,7 @@ public class MainCarBehaviorAnalysis {
     /**
      *  图片上传操作
      */
+    File textFile = null;
     public void upImageToService(String imagePath){
         // 不让upImageRunable线程进行上传操作
         upImageFalge = false;
@@ -351,37 +354,41 @@ public class MainCarBehaviorAnalysis {
             Log.i("图片上传操作", "没有对应的文件");
             return;
         }
-
+        // 获得txt文件中的数据并转换成prop对象
+        for (File file : dir1.listFiles()){
+            if (file.isFile() && file.getName().split("\\.")[1].equals("txt")){
+                textFile = file;
+            }
+        }
+        Log.i("图片上传操作", (textFile == null) + " ================== ");
         int tmp_interval = dir1.listFiles().length / Integer.parseInt(props.getProperty("up_image_max_number"));
         tmp_interval = tmp_interval == 0 ? 1 : tmp_interval;
         int tmp_up_number = 0;   // 记录已经上传的图片数量
         for (int i = 0;i < dir1.listFiles().length
                 && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
             File tmp_file = dir1.listFiles()[i];
-            // 跳过fail文件夹
-            if ( tmp_file.isDirectory()){
+
+            // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
+            String[] strArray = tmp_file.getName().split("\\.");
+            // 跳过fail文件夹和txt文件
+            if ( tmp_file.isDirectory() || strArray[1].equals("txt")){
                 i++;
                 continue;
             }
+
+            Long tmp_time = Long.parseLong(strArray[0]);
+            Date date = new Date(tmp_time);
+            @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             // 上传图片
-            String return_str = uploadFile(tmp_file);
+            String return_str = uploadFile(tmp_file, textFile);
+            Log.i("图片上传操作", return_str);
             if (return_str.equals("false")){
                 Log.i("图片上传操作", " 失败！ 移动数据到另外的文件夹 并使用线程开始轮询上传操作");
-                // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
-                String[] strArray = tmp_file.getName().split("\\.");
-                if (strArray[1].equals("txt")){
-                    i++;
-                    continue;
-                } else {
-                    Long tmp_time = Long.parseLong(strArray[0]);
-                    Date date = new Date(tmp_time);
-                    @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-                    // 失败一次就转移一次图片
-                    try {
-                        filesRemoveOtherDir(tmp_file,imagePath + "/fail/" + sdf.format(date));
-                    } catch (IOException e){
-                        e.printStackTrace();
-                    }
+                // 失败一次就转移一次图片
+                try {
+                    filesRemoveOtherDir(tmp_file,imagePath + "/fail/" + sdf.format(date),textFile);
+                } catch (IOException e){
+                    e.printStackTrace();
                 }
                 // TODO
                 // 1,图片转移操作
@@ -407,8 +414,8 @@ public class MainCarBehaviorAnalysis {
      *file  图片文件
      *requesurl  服务器后台
      */
-    public  String uploadFile(File file){
-        String result = null;
+    public  String uploadFile(File file, File txtFile){
+        String result = "false";
         try {
             URL url = new URL(props.getProperty("up_service_url"));
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -419,8 +426,26 @@ public class MainCarBehaviorAnalysis {
             conn.setUseCaches(false);//不允许使用缓存
             // 设置编码格式
             conn.setRequestProperty("Charset", "UTF-8");
-            conn.setRequestProperty("fileName", file.getName());
-            if(file != null){
+            // 上传txt中的文件
+            if(file != null && txtFile!= null){
+                // 设置当前文件名
+                conn.setRequestProperty("fileName", file.getName());
+                // 获得当前图片的详细信息
+                try {
+                    InputStreamReader inputReader = new InputStreamReader(new FileInputStream(txtFile),"UTF-8");
+                    BufferedReader bf = new BufferedReader(inputReader);
+                    // 按行读取字符串
+                    String str;
+                    while ((str = bf.readLine()) != null) {
+                        Log.i("txt数据", str);
+                    }
+                    bf.close();
+                    inputReader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    result = "false";
+                }
+
                 Log.i("开始上传", "==== 获得数据 ====");
                 DataOutputStream dos = new DataOutputStream(conn.getOutputStream());//getoutputStream会隐式的调用connect()
                 InputStream is = new FileInputStream(file);
@@ -442,7 +467,7 @@ public class MainCarBehaviorAnalysis {
                     while((ss=input.read(buffer))!=-1){
                         builder.append(new String(buffer,0,ss,"UTF-8"));//获取后台传递过来的数据
                     }
-                    result=builder.toString();
+                    result = builder.toString();
                 }
             }
             conn.disconnect();
@@ -530,8 +555,17 @@ public class MainCarBehaviorAnalysis {
             if (files != null) {
                 for (File file : files) {
                     File[] sub_files = file.listFiles();
+
+                    File textFile = null;
+                    // 获得txt文件中的数据并转换成prop对象
+                    for (File tmp_file : sub_files){
+                        if (tmp_file.getName().split("\\.")[1].equals("txt")){
+                            textFile = tmp_file;
+                        }
+                    }
+
                     for ( File sub_file : sub_files){
-                        String re_result = uploadFile(sub_file);
+                        String re_result = uploadFile(sub_file,textFile);
                         Log.i("图片上传操作", "线程结果 " + re_result);
                         if (re_result.equals("ok")){
                             // 上传成功则删除对应照片
@@ -658,7 +692,9 @@ public class MainCarBehaviorAnalysis {
         getBaseInfoDta();
         // 保存props中的数据到本地txt文件中
         try {
-            File file = new File(dir1 + "/data.txt");
+            Date date = new Date(System.currentTimeMillis());
+            @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            File file = new File(dir1 + "/"+sdf.format(date) + ".txt");
             if(!file.exists()) {
                 file.createNewFile(); // 创建新文件,有同名的文件的话直接覆盖
             }
@@ -682,7 +718,7 @@ public class MainCarBehaviorAnalysis {
     /**
      *  移动文件到另一个文件夹中
      */
-    public void filesRemoveOtherDir(File origin_file, String new_path) throws IOException {
+    public void filesRemoveOtherDir(File origin_file, String new_path, File txtFile) throws IOException {
         Log.d("photoPath -->> ", "开始移动文件======================   ");
         File dir1 = new File(new_path);
         if (!dir1.exists()) {
@@ -692,13 +728,24 @@ public class MainCarBehaviorAnalysis {
             File copy_file = new File(new_path + "/" + origin_file.getName());
             FileChannel inputChannel = null;
             FileChannel outputChannel = null;
+
+            File copy_txt_file = new File(new_path + "/" + origin_file.getName());
+            FileChannel inputTxtChannel = null;
+            FileChannel outputTxtChannel = null;
+
             try {
                 inputChannel = new FileInputStream(origin_file).getChannel();
                 outputChannel = new FileOutputStream(copy_file).getChannel();
                 outputChannel.transferFrom(inputChannel, 0, inputChannel.size());
+
+                inputTxtChannel = new FileInputStream(txtFile).getChannel();
+                outputTxtChannel = new FileOutputStream(copy_txt_file).getChannel();
+                outputTxtChannel.transferFrom(inputTxtChannel, 0, outputTxtChannel.size());
             }finally {
                 inputChannel.close();
                 outputChannel.close();
+                inputTxtChannel.close();
+                outputTxtChannel.close();
             }
         }
     }
