@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Properties;
 
 public class MainCarBehaviorAnalysis {
@@ -345,7 +346,8 @@ public class MainCarBehaviorAnalysis {
     /**
      *  图片上传操作
      */
-    File textFile = null;
+    // 利用hashMap存储txt中的数据 照片名称为key，prop对象为value
+    private HashMap<String,Properties> txtMap = new HashMap<>();
     public void upImageToService(String imagePath){
         // 不让upImageRunable线程进行上传操作
         upImageFalge = false;
@@ -354,20 +356,33 @@ public class MainCarBehaviorAnalysis {
             Log.i("图片上传操作", "没有对应的文件");
             return;
         }
-        // 获得txt文件中的数据并转换成prop对象
         for (File file : dir1.listFiles()){
             if (file.isFile() && file.getName().split("\\.")[1].equals("txt")){
-                textFile = file;
+                try {
+                    InputStreamReader inputReader = new InputStreamReader(new FileInputStream(file),"UTF-8");
+                    BufferedReader bf = new BufferedReader(inputReader);
+                    // 按行读取字符串
+                    String str;
+                    while ((str = bf.readLine()) != null) {
+                        Properties tmpTextProp = JSON.parseObject(str,Properties.class);
+                        String[] tmp_array = tmpTextProp.getProperty("current_image_url").split("/");
+                        String tmp_key = tmp_array[tmp_array.length - 1];
+                        txtMap.put(tmp_key, tmpTextProp);
+                    }
+                    bf.close();
+                    inputReader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
-        Log.i("图片上传操作", (textFile == null) + " ================== ");
+
         int tmp_interval = dir1.listFiles().length / Integer.parseInt(props.getProperty("up_image_max_number"));
         tmp_interval = tmp_interval == 0 ? 1 : tmp_interval;
         int tmp_up_number = 0;   // 记录已经上传的图片数量
         for (int i = 0;i < dir1.listFiles().length
                 && tmp_up_number < Integer.parseInt(props.getProperty("up_image_max_number"));){
             File tmp_file = dir1.listFiles()[i];
-
             // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
             String[] strArray = tmp_file.getName().split("\\.");
             // 跳过fail文件夹和txt文件
@@ -375,24 +390,20 @@ public class MainCarBehaviorAnalysis {
                 i++;
                 continue;
             }
-
+            // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
             Long tmp_time = Long.parseLong(strArray[0]);
             Date date = new Date(tmp_time);
             @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             // 上传图片
-            String return_str = uploadFile(tmp_file, textFile);
-            Log.i("图片上传操作", return_str);
+            String return_str = uploadFile(tmp_file, txtMap);
             if (return_str.equals("false")){
                 Log.i("图片上传操作", " 失败！ 移动数据到另外的文件夹 并使用线程开始轮询上传操作");
                 // 失败一次就转移一次图片
                 try {
-                    filesRemoveOtherDir(tmp_file,imagePath + "/fail/" + sdf.format(date),textFile);
+                    filesRemoveOtherDir(tmp_file,imagePath + "/fail/" + sdf.format(date), txtMap);
                 } catch (IOException e){
                     e.printStackTrace();
                 }
-                // TODO
-                // 1,图片转移操作
-                // 2，txt文件上传
             }
             tmp_up_number++;
             i = tmp_interval + i;
@@ -407,6 +418,7 @@ public class MainCarBehaviorAnalysis {
                 }
             }
         }
+        txtMap.clear(); // 清理hashMap中的数据
         Log.i("图片上传操作", "删除本地数据。。。。。 ");
     }
 
@@ -414,7 +426,7 @@ public class MainCarBehaviorAnalysis {
      *file  图片文件
      *requesurl  服务器后台
      */
-    public  String uploadFile(File file, File txtFile){
+    public  String uploadFile(File file, HashMap<String, Properties> txtMap){
         String result = "false";
         try {
             URL url = new URL(props.getProperty("up_service_url"));
@@ -426,26 +438,10 @@ public class MainCarBehaviorAnalysis {
             conn.setUseCaches(false);//不允许使用缓存
             // 设置编码格式
             conn.setRequestProperty("Charset", "UTF-8");
-            // 上传txt中的文件
-            if(file != null && txtFile!= null){
-                // 设置当前文件名
-                conn.setRequestProperty("fileName", file.getName());
-                // 获得当前图片的详细信息
-                try {
-                    InputStreamReader inputReader = new InputStreamReader(new FileInputStream(txtFile),"UTF-8");
-                    BufferedReader bf = new BufferedReader(inputReader);
-                    // 按行读取字符串
-                    String str;
-                    while ((str = bf.readLine()) != null) {
-                        Log.i("txt数据", str);
-                    }
-                    bf.close();
-                    inputReader.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    result = "false";
-                }
-
+            conn.setRequestProperty("fileName", file.getName());
+            // 传输txt中对应的图片基本信息
+            conn.setRequestProperty("fileBaseInfo", String.valueOf(txtMap.get(file.getName())));
+            if(file != null){
                 Log.i("开始上传", "==== 获得数据 ====");
                 DataOutputStream dos = new DataOutputStream(conn.getOutputStream());//getoutputStream会隐式的调用connect()
                 InputStream is = new FileInputStream(file);
@@ -459,12 +455,12 @@ public class MainCarBehaviorAnalysis {
 
                 int res = conn.getResponseCode();//获取响应码
                 if(res == 200){				//200表示响应后台成功！
-                    InputStream input=conn.getInputStream();//获取流
+                    InputStream input = conn.getInputStream();//获取流
                     Log.i("开始上传", "返回数据");
                     int ss;
-                    byte[] buffer=new byte[1024];
-                    StringBuilder builder=new StringBuilder();
-                    while((ss=input.read(buffer))!=-1){
+                    byte[] buffer = new byte[1024];
+                    StringBuilder builder = new StringBuilder();
+                    while((ss = input.read(buffer))!= -1){
                         builder.append(new String(buffer,0,ss,"UTF-8"));//获取后台传递过来的数据
                     }
                     result = builder.toString();
@@ -527,9 +523,9 @@ public class MainCarBehaviorAnalysis {
         upImageToService("/sdcard/android.example.com.tflitecamerademo/data/up_load");
 
         // 2,检查fail文件夹中是否有数据 有的话尝试上传
-        int tmp_close = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/un_close");
-        int tmp_dump = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_dump");
-        int tmp_load = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_load");
+        int tmp_close = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/un_close/fail");
+        int tmp_dump = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_dump/fail");
+        int tmp_load = upAndDelDirImage("/sdcard/android.example.com.tflitecamerademo/data/up_load/fail");
         Log.i("图片上传操作", " 检查文件夹是否有没上传的原始数据。。。。。。 ");
 
         if (tmp_close == 0 && tmp_dump == 0 && tmp_load == 0) {
@@ -549,39 +545,58 @@ public class MainCarBehaviorAnalysis {
      *  上传并删除fail中对应文件夹中的数据
      */
     public int upAndDelDirImage( String file_path){
-        File tmp_check_file = new File(file_path + "/fail");
+        File tmp_check_file = new File(file_path);
+        // 利用hashMap存储txt中的数据 照片名称为key，prop对象为value
+        HashMap<String,Properties> failTxtMap = new HashMap<>();
         if (tmp_check_file.exists()){
             File[] files = tmp_check_file.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    File[] sub_files = file.listFiles();
-
-                    File textFile = null;
-                    // 获得txt文件中的数据并转换成prop对象
-                    for (File tmp_file : sub_files){
-                        if (tmp_file.getName().split("\\.")[1].equals("txt")){
-                            textFile = tmp_file;
+            for (File file : files) {
+                File[] sub_files = file.listFiles();
+                // 找到txt文件 制作hashMap
+                File tmp_txt_file = null;
+                for ( File sub_file : sub_files){
+                    if (sub_file.isFile() && sub_file.getName().split("\\.")[1].equals("txt")){
+                        try {
+                            tmp_txt_file = sub_file;
+                            InputStreamReader inputReader = new InputStreamReader(new FileInputStream(sub_file),"UTF-8");
+                            BufferedReader bf = new BufferedReader(inputReader);
+                            // 按行读取字符串
+                            String str;
+                            while ((str = bf.readLine()) != null) {
+                                Properties tmpTextProp = JSON.parseObject(str,Properties.class);
+                                String[] tmp_array = tmpTextProp.getProperty("current_image_url").split("/");
+                                String tmp_key = tmp_array[tmp_array.length - 1];
+                                failTxtMap.put(tmp_key, tmpTextProp);
+                            }
+                            bf.close();
+                            inputReader.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
                     }
-
-                    for ( File sub_file : sub_files){
-                        String re_result = uploadFile(sub_file,textFile);
+                }
+                for ( File sub_file : sub_files){
+                    if (sub_file.isFile() && !sub_file.getName().split("\\.")[1].equals("txt")){
+                        String re_result = uploadFile(sub_file, failTxtMap);
                         Log.i("图片上传操作", "线程结果 " + re_result);
                         if (re_result.equals("ok")){
                             // 上传成功则删除对应照片
                             sub_file.delete();
+                            failTxtMap.remove(sub_file.getName());
                         }
                     }
-                    // 当文件夹下的图片全都删除后 再删除文件夹
-                    file.delete();
                 }
+                // 当只剩下一个文件时 只有可能是txt文件
+                if (sub_files.length == 1){
+                    tmp_txt_file.delete();
+                }
+                // 当前文件夹中还有图片 将不会执行删除
+                file.delete();
             }
         }
         return tmp_check_file.listFiles() == null ? 0 : tmp_check_file.listFiles().length;
     }
-    /**
-     *
-     */
+
 
     /**
      *  计算运输的持续时间
@@ -718,34 +733,44 @@ public class MainCarBehaviorAnalysis {
     /**
      *  移动文件到另一个文件夹中
      */
-    public void filesRemoveOtherDir(File origin_file, String new_path, File txtFile) throws IOException {
+    public void filesRemoveOtherDir(File origin_file, String new_path, HashMap< String,Properties > txtMap)
+            throws IOException {
         Log.d("photoPath -->> ", "开始移动文件======================   ");
         File dir1 = new File(new_path);
         if (!dir1.exists()) {
             dir1.mkdirs();
         }
         if (origin_file != null) {
-            File copy_file = new File(new_path + "/" + origin_file.getName());
             FileChannel inputChannel = null;
             FileChannel outputChannel = null;
-
-            File copy_txt_file = new File(new_path + "/" + origin_file.getName());
-            FileChannel inputTxtChannel = null;
-            FileChannel outputTxtChannel = null;
-
             try {
+                File copy_file = new File(new_path + "/" + origin_file.getName());
+                // 移动图片
                 inputChannel = new FileInputStream(origin_file).getChannel();
                 outputChannel = new FileOutputStream(copy_file).getChannel();
                 outputChannel.transferFrom(inputChannel, 0, inputChannel.size());
 
-                inputTxtChannel = new FileInputStream(txtFile).getChannel();
-                outputTxtChannel = new FileOutputStream(copy_txt_file).getChannel();
-                outputTxtChannel.transferFrom(inputTxtChannel, 0, outputTxtChannel.size());
+                // 移动文件
+                Date date = new Date(Long.parseLong(origin_file.getName().split("\\.")[0]));
+                @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                File file = new File(new_path + "/"+ sdf.format(date) + ".txt");
+                if(!file.exists()) {
+                    file.createNewFile(); // 创建新文件,有同名的文件的话直接覆盖
+                }
+                FileOutputStream fos = new FileOutputStream(file,true);
+                OutputStreamWriter osw = new OutputStreamWriter(fos);
+                BufferedWriter bw = new BufferedWriter(osw);
+                String propsString = JSON.toJSONString(txtMap.get(origin_file.getName()));
+                txtMap.remove(origin_file.getName());
+                bw.write(propsString);
+                bw.newLine();
+                bw.flush();
+                bw.close();
+                osw.close();
+                fos.close();
             }finally {
                 inputChannel.close();
                 outputChannel.close();
-                inputTxtChannel.close();
-                outputTxtChannel.close();
             }
         }
     }
