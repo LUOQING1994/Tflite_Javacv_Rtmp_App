@@ -17,6 +17,7 @@ import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -391,7 +392,7 @@ public class PushLocalFragment extends Fragment {
         // view创建完毕后 直接执行推流操作
         try {
             Thread.sleep(1000);
-            startPush();
+//            startPush();
             readLocalVedioByThread();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -642,10 +643,10 @@ public class PushLocalFragment extends Fragment {
 
     Bitmap bmp = null;
     public void readLocalVedioByThread() {
-        String vedioUrl = "long_dump_data.mp4";
+        String vedioUrl = "load1.avi";
         try {
-//            String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
-            String file = "sdcard" + "/" + vedioUrl;
+            String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
+//            String file = "sdcard" + "/" + vedioUrl;
             Log.i("file", file);
             grabber = new FFmpegFrameGrabber(file);
             grabber.setImageWidth(1280);
