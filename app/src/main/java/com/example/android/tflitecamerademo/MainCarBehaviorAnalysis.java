@@ -18,22 +18,21 @@ import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Properties;
 
-public class MainCarBehaviorAnalysis {
+class MainCarBehaviorAnalysis {
 
     private CarBehaviorAnalysisByOpenCv carBehaviorAnalysisByOpenCv = new CarBehaviorAnalysisByOpenCv();
     private OpenCVTools openCVTools = new OpenCVTools();
@@ -54,18 +53,15 @@ public class MainCarBehaviorAnalysis {
 
     private int last_car_category = 6; // 默认上一时刻车载类别为篷布
     private int tmp_car_category = 6; // 记录车载类别的中间状态
-    private String textToShow = "";
     private int tmp_state_change_number = 0; // 记录运输变装载 装载变运输的次数
     private Properties props = null;
     private ImageClassifier classifier;
-    private CameraActivity activity;
     private int current_speed = 0;  // 当前速度
     private int current_angle = 0;  // 当前角度
-    public MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys,
-                                              ImageClassifier classifiers, int tmp_speed, int tmp_angle) {
+    MatNumberUtils carBehaviorAnalysis(Bitmap bitmap_image, CameraActivity activitys,
+                                       ImageClassifier classifiers, int tmp_speed, int tmp_angle) {
         if (activitys == null || props == null || classifier == null){
-            activity = activitys;
-            props = activity.props;
+            props = activitys.props;
             classifier = classifiers;
             // 开启检测未上传成功的图片线程
             startUpImageThread();
@@ -82,12 +78,12 @@ public class MainCarBehaviorAnalysis {
         String class_result = CarModelAnalysis(tmp_now_image);
         // 由于全局使用了同一个matNumberUtils对象 所以 即使没有得到检测结果 我们得到的便是上一时刻的车辆状态
 
-        Integer model_result_index = classifier.CAR_CATEGORY;
+        int model_result_index = classifier.CAR_CATEGORY;
         double model_result_prob = classifier.CAR_CATEGORY_PROBABILITY;
 //        Log.i("opencv结果", "==========================");
-        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
-        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
-        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
+//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " last_car_state： " + last_car_state + " tmp_last_car_state: " + tmp_last_car_state + " image_sim_number: " + image_sim_number );
+//        Log.i("opencv结果", "tmp_car_state:" + tmp_car_state + " tmp_car_load: " + tmp_car_load);
+//        Log.i("模型结果", model_result_index + " ： " + model_result_prob );
         // 启用模型的检测结果是为了防止在夜晚opencv算法识别错误的情况
         if (tmp_car_state == 0 && model_result_index != 5 && model_result_index != 6
                 && model_result_prob > 0.85 && speedMidTime < 10 && hullMidTime > 10
@@ -143,7 +139,7 @@ public class MainCarBehaviorAnalysis {
             tmp_state_change_number = 0;
             tmp_car_load = tmp_car_state;
         }
-        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
+//        Log.i("第一次结果", "tmp_car_state : " + tmp_car_state + " tmp_state_change_number： " + tmp_state_change_number  + " now_image_hull: " + now_image_hull);
 //        Log.i("第二次结果", simMidTime + " ： " + hullMidTime + " : " + speedMidTime);
 
         //    ==========  利用speedMidTime、hullMidTime、simMidTime 判断何时转换状态为运输     ===========================
@@ -170,7 +166,7 @@ public class MainCarBehaviorAnalysis {
         // 根据当前车辆状态 上传图片数据
         imageOptionFrame(bitmap_image);
 
-        textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
+        String textToShow = "检测结果: " + openCVTools.result_text.get(tmp_car_state) + " \n " +
                 "凸包数量: " + now_image_hull + " \n " +
                 "相似度 : " + image_sim_number + " \n " +
                 "当前角度：" + tmp_angle + " \n " +
@@ -181,7 +177,7 @@ public class MainCarBehaviorAnalysis {
         return matNumberUtils;
     }
 
-    public MatNumberUtils mainCarBehaviorAnalysis(Mat tmp_image, int tmp_angle) {
+    private MatNumberUtils mainCarBehaviorAnalysis(Mat tmp_image, int tmp_angle) {
         // 基础的图像处理
         Mat tmp_cut_image = openCVTools.deal_flag(tmp_image);
         // 初始化基础参数
@@ -228,7 +224,7 @@ public class MainCarBehaviorAnalysis {
     /**
      * 模型类别检测
      */
-    public String CarModelAnalysis(Mat image) {
+    private String CarModelAnalysis(Mat image) {
         Mat tmp_model_image = new Mat();
         // 模型检测
         Imgproc.resize(image, tmp_model_image, new Size(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y));
@@ -253,10 +249,9 @@ public class MainCarBehaviorAnalysis {
     private boolean is_upOneFlag = false; // 是否可以上传倾倒或者装载的图片
     private int unCloseNumber = 0; // 记录未覆盖的图片数量
     private String upImagePath = ""; // 图片上传的地址
-    private Long upImageFirstTimeInterval = 0L;  // 第一次进行上传的时间戳
 
     @SuppressLint("SdCardPath")
-    public void imageOptionFrame(Bitmap frame_data){
+    private void imageOptionFrame(Bitmap frame_data){
 //        Log.i("结果", "stateMidTime ： " + stateMidTime + " unCloseMidTime: " + unCloseMidTime);
         //  当运输状态持续了2分钟后 才进行上传倾倒或者装载的图片
         if ( stateMidTime < Integer.parseInt(props.getProperty("state_time_through")) ){
@@ -271,6 +266,8 @@ public class MainCarBehaviorAnalysis {
                     filesOption(upImagePath,  Integer.parseInt(props.getProperty("save_image_max_number")), frame_data);
                     is_upOneFlag = true;
                 }
+                // 关闭upImageRunable线程
+                upImageFalge = false;
             }
             unCloseNumber = 0;
         } else {
@@ -318,7 +315,7 @@ public class MainCarBehaviorAnalysis {
      */
     // 利用hashMap存储txt中的数据 照片名称为key，prop对象为value
     private HashMap<String,Properties> txtMap = new HashMap<>();
-    public void upImageToService(String imagePath){
+    private void upImageToService(String imagePath){
         // 不让upImageRunable线程进行上传操作
         upImageFalge = false;
         File dir1 = new File(imagePath);
@@ -361,7 +358,7 @@ public class MainCarBehaviorAnalysis {
                 continue;
             }
             // 通过文件名称 得到产生图片的时间戳 用于命名上传失败后的存储文件
-            Long tmp_time = Long.parseLong(strArray[0]);
+            long tmp_time = Long.parseLong(strArray[0]);
             Date date = new Date(tmp_time);
             @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH");
             Log.i("图片上传操作", "移动数据到另外的文件夹 并使用线程开始轮询上传操作");
@@ -429,9 +426,6 @@ public class MainCarBehaviorAnalysis {
                 }
             }
             conn.disconnect();
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-            result = "false";
         } catch (IOException e) {
             e.printStackTrace();
             result = "false";
@@ -442,15 +436,14 @@ public class MainCarBehaviorAnalysis {
     /**
      * 创建一个线程 用于轮询未上传成功的照片数据
      */
-    /** Starts a background thread and its {@link Handler}. */
-    private HandlerThread upImageThread;
     private static final String HANDLE_THREAD_NAME = "upImageThread";
     private Handler upImageHandler;
     private final Object lock = new Object();
     private boolean upImageFalge = false;
 
     private void startUpImageThread() {
-        upImageThread = new HandlerThread(HANDLE_THREAD_NAME);
+        /** Starts a background thread and its {@link Handler}. */
+        HandlerThread upImageThread = new HandlerThread(HANDLE_THREAD_NAME);
         upImageThread.start();
         upImageHandler = new Handler(upImageThread.getLooper());
         synchronized (lock) {
@@ -475,7 +468,7 @@ public class MainCarBehaviorAnalysis {
      * 用于轮询查看未上传成功的照片
      */
     @SuppressLint("SdCardPath")
-    public void cheackUpImage(){
+    private void cheackUpImage(){
         upImageFalge = false;
         // 开启线程 检测是否有未上传的图片 并进行轮询
 
@@ -520,7 +513,7 @@ public class MainCarBehaviorAnalysis {
                     if (sub_file.isFile() && sub_file.getName().split("\\.")[1].equals("txt")){
                         try {
                             tmp_txt_file = sub_file;
-                            InputStreamReader inputReader = new InputStreamReader(new FileInputStream(sub_file),"UTF-8");
+                            InputStreamReader inputReader = new InputStreamReader(new FileInputStream(sub_file), StandardCharsets.UTF_8);
                             BufferedReader bf = new BufferedReader(inputReader);
                             // 按行读取字符串
                             String str;
@@ -568,7 +561,7 @@ public class MainCarBehaviorAnalysis {
     private long stateMidTime = 0;  // 车辆状态为0的时间
     private boolean state_start_time_flag = true;
     private boolean state_end_time_flag = false;
-    public void countTransportTime(){
+    private void countTransportTime(){
         if (tmp_car_state == 0 && state_start_time_flag) {
             stateStartTime = System.currentTimeMillis();
             state_start_time_flag = false;
@@ -593,8 +586,7 @@ public class MainCarBehaviorAnalysis {
             long diff = stateEndTime - stateStartTime;
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
-            long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            stateMidTime = min;
+            stateMidTime = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
         }
         // 未遮蔽状态 只能在运输时 计算
         if (stateMidTime < 2) {
@@ -609,7 +601,7 @@ public class MainCarBehaviorAnalysis {
     private long loadMidTime = 0;  // 车辆状态为0的时间
     private boolean load_start_time_flag = true;
     private boolean load_end_time_flag = false;
-    public void countLoadTime(){
+    private void countLoadTime(){
         if (tmp_car_state == -1 && load_start_time_flag) {
             loadStartTime = System.currentTimeMillis();
             load_start_time_flag = false;
@@ -635,8 +627,7 @@ public class MainCarBehaviorAnalysis {
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            loadMidTime = sec;
+            loadMidTime = (diff/1000-day*24*60*60-hour*60*60-min*60);
         }
     }
     /**
@@ -647,7 +638,7 @@ public class MainCarBehaviorAnalysis {
     private long unCloseMidTime = 0;  // 车辆未遮蔽的时间
     private boolean unClose_start_time_flag = true;
     private boolean unClose_end_time_flag = false;
-    public void countUnCloseTime(){
+    private void countUnCloseTime(){
         int tmp_unClose_flag;
         if ( classifier.CAR_CATEGORY != 5 && classifier.CAR_CATEGORY != 6
                 && current_angle < 10
@@ -682,15 +673,14 @@ public class MainCarBehaviorAnalysis {
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            unCloseMidTime = sec;
+            unCloseMidTime = (diff/1000-day*24*60*60-hour*60*60-min*60);
         }
         Log.i("统计未遮蔽时间", "tmp_unClose_flag : " + tmp_unClose_flag + ": " + classifier.CAR_CATEGORY  + " : " + classifier.CAR_CATEGORY + ": " + classifier.CAR_CATEGORY_PROBABILITY);
     }
     /**
      *  判断文件夹中文件数 并存储文件
      */
-    public void filesOption( String path, int maxFileNumber, Bitmap frame_data){
+    private void filesOption(String path, int maxFileNumber, Bitmap frame_data){
         Log.d("photoPath -->> ", "存储开始======================   ");
         // 不再上图片上传线程工作
         upImageFalge = false;
@@ -710,8 +700,6 @@ public class MainCarBehaviorAnalysis {
             frame_data.compress(Bitmap.CompressFormat.JPEG, 80, fos);
             fos.flush();
             fos.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -737,17 +725,15 @@ public class MainCarBehaviorAnalysis {
                 osw.close();
                 fos.close();
             }
-        }catch (FileNotFoundException e1) {
+        } catch (IOException e1) {
             e1.printStackTrace();
-        } catch (IOException e2) {
-            e2.printStackTrace();
         }
     }
 
     /**
      *  移动文件到另一个文件夹中
      */
-    public void filesRemoveOtherDir(File origin_file, String new_path, HashMap< String,Properties > txtMap){
+    private void filesRemoveOtherDir(File origin_file, String new_path, HashMap<String, Properties> txtMap){
         Log.d("photoPath -->> ", "开始移动文件======================   ");
         File dir1 = new File(new_path);
         if (!dir1.exists()) {
@@ -790,7 +776,7 @@ public class MainCarBehaviorAnalysis {
     /**
      * 获取需要上传服务器的基本信息数据
      */
-    public void getBaseInfoDta(){
+    private void getBaseInfoDta(){
         props.setProperty("current_state",openCVTools.result_text.get(tmp_car_state));
         props.setProperty("current_sim", String.valueOf(image_sim_number));
         props.setProperty("current_sim_time", String.valueOf(simMidTime));
@@ -813,7 +799,7 @@ public class MainCarBehaviorAnalysis {
     private long simMidTime = 0;
     private boolean count_start_time_flag = true;
     private boolean count_end_time_flag = true;
-    public void countSimTime(){
+    private void countSimTime(){
         // 计算相似度的持续时间间隔
         if (image_sim_number == Integer.parseInt(props.getProperty("image_sim_number")) && count_start_time_flag){
             startTime =  System.currentTimeMillis();
@@ -840,8 +826,7 @@ public class MainCarBehaviorAnalysis {
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            simMidTime = sec;
+            simMidTime = (diff/1000-day*24*60*60-hour*60*60-min*60);
         }
     }
     /**
@@ -852,7 +837,7 @@ public class MainCarBehaviorAnalysis {
     private long speedMidTime = 0;  // 速度为0的持续时间
     private boolean speed_start_time_flag = true;
     private boolean speed_end_time_flag = true;
-    public void countSpeedTime(){
+    private void countSpeedTime(){
         if (current_speed > Integer.parseInt(props.getProperty("hull_speed_thought")) && speed_start_time_flag) {
             speedStartTime = System.currentTimeMillis();
             speed_start_time_flag = false;
@@ -876,8 +861,7 @@ public class MainCarBehaviorAnalysis {
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            speedMidTime = sec;
+            speedMidTime = (diff/1000-day*24*60*60-hour*60*60-min*60);
         }
     }
     /**
@@ -888,7 +872,7 @@ public class MainCarBehaviorAnalysis {
     private long hullMidTime = 0;  // 凸包为0的持续时间
     private boolean hull_start_time_flag = true;
     private boolean hull_end_time_flag = true;
-    public void countHullTime(){
+    private void countHullTime(){
         // 计算凸包小于10的持续时间间隔
         if (now_image_hull < 10 && hull_start_time_flag) {
             hullStartTime = System.currentTimeMillis();
@@ -915,8 +899,7 @@ public class MainCarBehaviorAnalysis {
             long day = diff / (24 * 60 * 60 * 1000);
             long hour = (diff / (60 * 60 * 1000) - day * 24);
             long min = ((diff / (60 * 1000)) - day * 24 * 60 - hour * 60);
-            long sec = (diff/1000-day*24*60*60-hour*60*60-min*60);
-            hullMidTime = sec;
+            hullMidTime = (diff/1000-day*24*60*60-hour*60*60-min*60);
         }
     }
 }

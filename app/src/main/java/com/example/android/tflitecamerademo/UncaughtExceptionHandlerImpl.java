@@ -176,6 +176,8 @@ public class UncaughtExceptionHandlerImpl implements UncaughtExceptionHandler {
             collectDeviceInfo(mContext);
             // 保存日志文件
             saveCrashInfo2File(ex);
+            // 上传错误日志到服务器
+            // TODO ==============
         }
         return true;
     }

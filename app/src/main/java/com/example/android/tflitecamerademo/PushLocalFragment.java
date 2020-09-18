@@ -643,7 +643,7 @@ public class PushLocalFragment extends Fragment {
 
     Bitmap bmp = null;
     public void readLocalVedioByThread() {
-        String vedioUrl = "load1.avi";
+        String vedioUrl = "ScreenRecording.mp4";
         try {
             String file = Environment.getExternalStorageDirectory().toString() + "/" + vedioUrl;
 //            String file = "sdcard" + "/" + vedioUrl;
