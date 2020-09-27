@@ -1,5 +1,8 @@
 # TF Lite Android App
 
+## 本程序实现功能
+### 1，摄像头数据实时推流到服务器，在本程序中，服务器设置的是边缘设备（android系统开发板）使用前需要配置sys
+### 2，获取推流时的byte[]数组 转成图片后 利用自训练的Tflite分类模型和opencv算法，综合分析出当前货车的载物类别和行驶行为
 ## Building from Source with Bazel
 
 1. Follow the [Bazel steps for the TF Demo App](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/examples/android#bazel):
